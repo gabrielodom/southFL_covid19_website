@@ -9,7 +9,7 @@ We are an interdisciplinary team of public health scientists representing Florid
 
 
 ## Roy Williams
-Your humble graduate student
+MPH-Biostatistics, 2020, Florida International University.
 
 ## Gabriel Odom, PhD, ThD
 Assistant Professor, Department of Biostatistics, Robert Stempel College of Public Health and Social Work, Florida International University.
@@ -24,15 +24,16 @@ Professor and Chair, Department of Epidemiology, Robert Stempel College of Publi
 <https://stempel.fiu.edu/faculty/trepka-mary-jo/>
 
 ## Emir Veledar, PhD
-Director of Predictive Health Analytics and Outcomes, Baptist Health South Florida (BHSF); Courtesy Professor, Department of Biostatistics, Florida International University.
+Director of Predictive Health Analytics and Outcomes, Baptist Health South Florida; Courtesy Professor, Department of Biostatistics, Florida International University.
 <https://stempel.fiu.edu/faculty/veledar-emir/>
 
 ## Anshul Saxena
-about
+Biostatistician, Baptist Health South Florida; Courtesy Assistant Professor, Department of Health Promotion and Disease Prevention, Florida International University.
+<https://works.bepress.com/anshul-saxena/>
  
-## Louis Gidel
-about 
+## Louis T. Gidel, MD, PhD
+Chief Medical Informatics and Quality Officer, Baptist Health South Florida
 
-## Timothy Norris, PhD
-Data Scientist, Institute for Data Science and Computing, UM Libraries, The University of Miami.
+## Timothy B. Norris, PhD
+Librarian Associate Professor of Data Science, University of Miami Libraries and Institute for Data Science and Computing, University of Miami.
 <https://sp.library.miami.edu/subjects/staff/tnorris>
