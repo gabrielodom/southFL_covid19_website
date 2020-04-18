@@ -24,7 +24,7 @@ Professor and Chair, Department of Epidemiology, Robert Stempel College of Publi
 <https://stempel.fiu.edu/faculty/trepka-mary-jo/>
 
 ## Emir Veledar, PhD
-Director of Predictive Health Analytics and Outcomes, Baptist Health South Florida; Courtesy Professor, Department of Biostatistics, Florida International University.
+Director of Predictive Analytics and Biostatistics, Baptist Health South Florida; Courtesy Professor, Department of Biostatistics, Florida International University.
 <https://stempel.fiu.edu/faculty/veledar-emir/>
 
 ## Anshul Saxena
