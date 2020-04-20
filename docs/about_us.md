@@ -27,7 +27,7 @@ Professor and Chair, Department of Epidemiology, Robert Stempel College of Publi
 Director of Predictive Analytics and Biostatistics, Baptist Health South Florida; Courtesy Professor, Department of Biostatistics, Florida International University.
 <https://stempel.fiu.edu/faculty/veledar-emir/>
 
-## Anshul Saxena
+## Anshul Saxena, BDS, PhD
 Biostatistician, Baptist Health South Florida; Courtesy Assistant Professor, Department of Health Promotion and Disease Prevention, Florida International University.
 <https://works.bepress.com/anshul-saxena/>
  
