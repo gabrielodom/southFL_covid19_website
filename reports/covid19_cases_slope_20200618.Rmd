@@ -1,0 +1,464 @@
+---
+title: "Miami-Dade County COVID-19 Trajectory"
+author: "Roy Williams, Gabriel J. Odom, Zoran Bursac, and Mary Jo Trepka"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+```
+
+
+# Introduction
+
+Public understanding of science is critical in times of crisis. The following analysis was conducted to examine the trajectory of COVID-19 in Miami-Dade County. For phased reopening, The White House has set guidelines for local municipalities in their “Opening Up American Again” report. In the report, it is highly suggested that:
+
+1. Local areas show a downward trajectory in the number of positive cases as a percent of total tests over a two-week period, and
+2. Local hospitals have capacity to handle all patients without crisis care.
+
+The analysis begins by looking at the number of new positive cases each day and the number of total tests performed each day. The figures are presented together because **as there is more testing, there are likely to be more positive test results**. Therefore, the proportion of positive cases is also calculated. Given a flat or increasing number of tests performed, **the proportion of positive cases is the key metric to be used when looking at epidemic trajectory**. It is recommended that this proportion <ins>not exceed</ins> 5%.
+
+Finally, to ensure hospitals can meet demand without crisis care, the COVID-19 positive hospitalization census, COVID-19 positive ICU census, and COVID-19 positive ventilation census is plotted over time. Census refers to the number of COVID-19 positive patients in the hospital, ICU, and on ventilators, respectively, on a given day.
+
+
+*******************************************************************************
+
+
+# COVID-19 Test Counts and Proportions
+```{r packages}
+# Load packages
+library(tidyverse)
+library(lubridate)
+library(cowplot)
+library(kableExtra)
+```
+
+```{r read_data}
+# Import data
+sflCases_df <- read_csv(
+	file = "../../data/FLDH_COVID19_cases_20200618.csv"
+) %>% 
+	mutate(PropPositive = 100 * Positive / (Positive + Negative))
+```
+
+
+## Full Data
+This is a table of the most recent data we have available. We include data sources at the end of the document.
+```{r}
+knitr::kable(sflCases_df) %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+</br>
+
+The data above show for each day since April 2: the number of positive COVID-19 tests, the number of negative COVID-19 tests, and the proportion of positive COVID-19 tests to total COVID-19 tests.
+
+```{r fix_dates}
+sflCases2_df <- 
+	sflCases_df %>% 
+	mutate(Date = as.POSIXct(strptime(Date, format = "%d-%b"))) %>% 
+	mutate(Date = as_date(Date)) 
+
+startEnd_date <- 
+	sflCases2_df %>%
+	slice(1, n()) %>%
+	pull(Date) %>%
+	format("%d %B")
+```
+
+
+## Total COVID-19 Tests by Day
+We see the following pattern for the count of total tests over the past two months (shown on a log scale):
+```{r tests_over_time}
+nTotal_gg <- 
+	ggplot(
+		data = sflCases2_df %>%
+			mutate(Total = Positive + Negative)
+	) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Total) + 
+	scale_y_log10(
+		breaks = c(2000, 5000, 10000),
+		labels = c("2k", "5k", "10k")
+	) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Number of COVID-19 Tests by Day",
+		subtitle = paste(
+			"Miami-Dade County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+	
+	stat_smooth(method = "loess", colour = "black") +
+  geom_point(colour = "black")
+
+nTotal_gg
+```
+
+The average number of COVID-19 tests performed each day has doubled from about 2,000 in early April to over 4,500 in mid-June. This data is presented on a log scale.
+
+
+## Positive COVID-19 Tests by Day
+We see the following pattern for the count of positive tests over the past two months:
+```{r cases_over_time}
+nPositive_gg <- 
+	ggplot(data = sflCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Positive) + 
+	# scale_y_log10() +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Number of Positive COVID-19 Tests Results by Day",
+		subtitle = paste(
+			"Miami-Dade County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		)
+	) + 
+	
+	stat_smooth(method = "loess", colour = "green") +
+	geom_point(colour = "green") 
+
+nPositive_gg
+```
+
+There was a general decrease in the number of new positive test results from early April until around May 11th. Afterwards, this trend has flattened out, and later has increased somewhat.
+
+
+## Proportion of Positive Cases within Past Two Weeks
+The proportion of positive COVID-19 tests for the past two weeks is:
+```{r recent_data}
+recent_df <- 
+	sflCases2_df %>% 
+	top_n(15, Date)
+
+# Date Range
+recentStartEnd_date <- 
+	recent_df %>%
+	slice(1, n()) %>%
+	pull(Date) %>%
+	format("%d %B")
+
+# Linear Trend Slope
+recentSlope_num <- recent_df %>% 
+	lm(PropPositive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Slope Adjective:
+adjective <- case_when(
+	abs(recentSlope_num) < 1 ~ "slight",
+	abs(recentSlope_num) < 10 ~ "",
+	abs(recentSlope_num) > 10 ~ "significant"
+)
+
+# Protest Effects: 14 days (incubation period) from George Floyd's death on
+#   27 May (see https://www.cdc.gov/coronavirus/2019-ncov/hcp/clinical-guidance-management-patients.html)
+protestEffect_df <- 
+	sflCases2_df %>% 
+	filter(Date >= "2020-06-10")
+protestSlope_num <- 
+	protestEffect_df %>% 
+	lm(PropPositive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+```
+
+```{r recent_proportion}
+ggplot(data = recent_df) +
+	
+	theme_bw() +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive Test Results within the Past Two Weeks",
+		subtitle = paste(
+			"Miami Dade County;",
+			recentStartEnd_date[1], "to", recentStartEnd_date[2],
+			"2020; Linear Change =",
+			round(recentSlope_num, 3)
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor.",
+		y = "Proportion (%) of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "black") +
+	stat_smooth(method = "lm", colour = "black", se = FALSE, linetype = "dashed")
+```
+
+During the 14-day period from `r recentStartEnd_date[1]` to `r recentStartEnd_date[2]`, there was a <b> `r adjective` `r if (recentSlope_num > 0) "increase" else "decrease"` </b> in the proportion of positive COVID-19 cases reported in Miami-Dade County. However, this does not tell the whole story. **Since 11 June (exactly two weeks after the George Floyd Murder protests began in Miami), the proportion of positive cases has been increasing by `r protestSlope_num` percentage points per day.** Because of the increasing number of tests performed, this is the **key metric** for examining COVID-19 trajectory. The percentage of positive test results over the past two weeks is between 4 and 5%. **This is hovering near the 5% positive threshold recommended by the World Health Organization (WHO) for reopening.**
+
+
+## Proportion of Positive COVID-19 Tests by Day
+These are the proportions of positive COVID-19 tests for the since the start of April:
+```{r prop_over_time_full}
+ggplot(data = sflCases2_df) +
+	
+	theme_bw() +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Overall Proportion of Positive Test Results Out of All Tests",
+		subtitle = paste(
+			"Miami Dade County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor.",
+		y = "Proportion (%) of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "black") +
+	stat_smooth(method = "lm", colour = "black", se = FALSE, linetype = "dashed")
+```
+
+Overall, the proportion of positive test results out of all tests **decreased significantly** from over 20% in April to the current proportion of about 5%. This is function of test availability and the population being tested. Overall, since the county reopened, the proportion of positive tests is no longer decreasing over time.
+
+
+*******************************************************************************
+
+
+# Hospitalisation Data
+```{r hosptitalised}
+# Import Data
+library(readxl)
+data_dir <- "../../data/"
+dataFiles_char <- list.files(path = data_dir, pattern = "ESS_.*hrs")
+# NOTE: on and after 10 June, they removed the "s" from "hrs". I've added it to
+#   the file names manually (as I have to save the files manually from my email
+#   anyway, I can add the "s" to the file name).
+
+read_excel_safely <- safely(read_excel)
+
+miamidadeHospitalised_ls <-
+	map(
+		.x = dataFiles_char,
+		.f = ~{
+
+	    df_ls <- read_excel_safely(
+	      path = paste0(data_dir, .x),
+        sheet = ifelse(
+        	# The tab name changed in June (06)
+        	test = str_detect(.x, pattern = "Hospitals_06"),
+        	yes = "County_Bed_Avail_Report_for_Par", 
+        	no = "County_Bed_Availability_Report_"
+        ),
+        skip = 1
+      )
+
+	    if(!is.null(df_ls$error)){
+        NULL
+	    } else {
+	    	
+	    	df_ls$result %>%
+    	    filter(County == "MIAMI-DADE") %>%
+    	    select(contains("COVID")) %>%
+    	    mutate(
+    	    	Date_char = str_remove(
+    	    		.x,
+    	    		pattern = "ESS_BedAvailabilityWithAddlinfo_Hospitals_"
+    	    	)
+    	    ) %>%
+    	    mutate(
+    	    	Date_char = str_sub(Date_char, end = 10)
+    	    ) %>%
+    	    mutate(
+    	    	Date_char = str_replace_all(
+    	    		Date_char,
+    	    		pattern = "\\.",
+    	    		replacement = "-"
+    	    	)
+    	    ) %>%
+    	    mutate(Date = as.POSIXct(Date_char, format = "%m-%d-%Y")) %>%
+    	    select(-Date_char) %>%
+    	    select(Date, everything())
+	    	
+	    }
+
+		}
+	)
+```
+
+```{r}
+# Wrangle Data
+# We had a data wrangling error, so I wrapped read_excel() in a safely() and
+#   added an if() statement.
+# miamidadeHospitalised_ls %>%
+# 	map_lgl(is.null) %>%
+# 	which()
+# 30 83 84 85 86 87
+# dataFiles_char[30]
+# "ESS_BedAvailabilityWithAddlinfo_Hospitals_04.23.2020_1045hrs.xlsx"
+# I inspected this file manually and found the sheet's name was abbreviated
+miamidadeHospitalised_ls[[30]] <-
+	read_excel(
+    path = paste0(data_dir, dataFiles_char[30]),
+    sheet = "County",
+    skip = 1
+  ) %>%
+  filter(County == "MIAMI-DADE") %>%
+  select(contains("COVID")) %>%
+  mutate(Date_char = "2020-04-23") %>%
+  mutate(Date = as.POSIXct(Date_char, format = "%Y-%m-%d")) %>%
+  select(-Date_char) %>%
+  select(Date, everything())
+
+# dataFiles_char[83]
+# After June 1, they changed the sheet name.
+# miamidadeHospitalised_ls[[83]]
+
+
+miamidadeHospitalised_df <-
+	miamidadeHospitalised_ls %>%
+	bind_rows() %>%
+	mutate(Date = as_date(Date)) %>% 
+	mutate(Hospitalised = `COVID IN ICU` + `COVID NON ICU`) %>%
+  rename(
+  	ICU = `COVID IN ICU`,
+  	Ventilated = `COVID ON VENT`,
+  	AdmitPrevDay = `COVID + Admits Day Before`,
+  	DischPrevDay = `COVID + Disch Day Before`
+  ) %>%
+	mutate(DeltaAdmit = AdmitPrevDay - DischPrevDay) %>%
+  select(
+  	Date, Hospitalised, ICU, Ventilated, AdmitPrevDay, DischPrevDay, DeltaAdmit
+  )
+```
+
+```{r}
+# Calculate Dates and Save
+startEndESS_date <- 
+	miamidadeHospitalised_df %>%
+	slice(1, n()) %>%
+	pull(Date) 
+
+# write_csv(
+# 	miamidadeHospitalised_df,
+# 	path = paste0(
+# 		"../data/ESS_MiamiDade_summary_",
+# 		format(startEndESS_date[2], "%Y%m%d"),
+# 		".csv"
+# 	)
+# )
+```
+
+
+## Full Data
+```{r}
+# Display Data
+knitr::kable(miamidadeHospitalised_df) %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+</br>
+
+The data above is COVID-19 hospital census data in Miami-Dade county for all dates with available data since April 2. These columns are: the number of patients hospitalized with COVID-19 (**Hospitalised**), the number of patients in intensive care with COVID-19 (**ICU**), the number of patients in intensive care with COVID-19 who are also on ventilators (**Ventilated**), the number of patients positive for COVID-19 that were admitted the previous day (**AdmitPrevDay**), the number of patients recovered from COVID-19 that were discharged the previous day (**DischPrevDay**), and the net admission of patients positive for COVID-19 the previous day (**DeltaAdmit**; a negative value means more recovered patients were discharged than sick patients admitted). *There is a data error for the count ventilated on the 4th of June; we do not know the true value, but we were told verbally by local Department of Health officials that the data point should be approximately 55. We removed this point from the data before estimating the models shown below.*
+
+```{r pivot_hosp_data}
+miamidadeHospitalised_df[
+	miamidadeHospitalised_df$Date == "2020-06-04",
+	"Ventilated"
+] <- NA_real_
+# There is an error in the original data for June 4th. Rather than deleting the
+#   whole row of the raw data, we are skipping this ventilation value
+
+mdCOVID_df <-
+	miamidadeHospitalised_df %>%
+	pivot_longer(
+		Hospitalised:DeltaAdmit,
+		names_to = "Type",
+		values_to = "Count"
+	)
+```
+
+
+## Hospital COVID-19 Census
+We now show a census plot of hospitalizations, patients in ICU, and those in ICU on ventilators (shown on a log scale):
+```{r graph_hosp_counts, warning = FALSE}
+ggplot(
+	data = mdCOVID_df %>%
+		filter(Type != "DischPrevDay") %>%
+		filter(Type != "AdmitPrevDay") %>%
+		filter(Type != "DeltaAdmit") 
+) +
+
+	theme_bw() +
+	theme(legend.position = "bottom") + 
+	aes(x = Date, y = Count, group = Type, colour = Type) +
+	scale_color_manual(
+		values = c(
+			"Ventilated" = "#ff0000",
+			"ICU" = "#ff7400",
+			"Hospitalised" = "#ffc100",
+			"AdmitPrevDay" = "black"
+		)
+	) +
+	scale_y_log10() +
+	labs(
+		title = "Overall Miami-Dade County Hospital COVID-19 Census",
+		subtitle = paste(
+			"Miami Dade County;",
+			format(startEndESS_date[1], "%d %B"),
+			"to",
+			format(startEndESS_date[2], "%d %B"),
+			"2020"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+
+	geom_point(size = 2) +
+	stat_smooth(se = FALSE)
+```
+
+Overall, since mid-April, the number of COVID-19 positive patients in Miami-Dade County hospitals has remained constant at around 700 people in hospitals. The COVID-19 ICU census has decreased from its reported peak of 285 on April 17th to around 100 as of June 6th. Overall, the number of COVID-19 patients on ventilators has decreased significantly from its highest point of 192 ventilated on April 22nd to around 60 on June 6th. However, **the observed decreasing trends for ICU census and ventilation census have reversed over the past week**. Note: data is plotted on a log scale.
+
+
+*******************************************************************************
+
+
+# Conclusion
+
+Public understanding of science is essential in times of public health crisis. We offer a few closing remarks.
+
+- **The number of positive tests obtained tends to increase as the overall number of tests performed increases.** Simply stated, more tests result in more opportunities for positive results. As an analogy, overall more students will pass a class if more students are enrolled in the class. If we are interested in the difficulty of a course, the percentage of students that pass the class is a better gauge of difficulty than the number of students who pass the class. This is because some classes are large, and some classes are small.
+- **Based on the increasing number of COVID-19 tests performed in Miami-Dade County, the proportion of positive tests obtained is the best metric to access COVID-19 epidemic progression.** Overall, the proportion of positive tests obtained has decreased from a high of 20% in early April, to the current rate of between 4-5%. Over the last two weeks, however, the proportion has slightly increased. However, this percentage is still (currently) holding near the 5% threshold recommended by many experts for reopening. Similarly, the number of COVID-19 positive individuals in the hospital, ICU, and on ventilators at the same time has substantially decreased since mid April. However, over the last 2 weeks, the numbers are no longer decreasing, but have seemed to flatten out. From our estimation, hospitals in Miami-Dade County still have sufficient resources to accommodate potential increases.
+- **These metrics will change over time based on human behavior.** Because of this, these metrics will be closely monitored to assess the effect of reopening policies.
+
+
+*******************************************************************************
+
+
+# Data Sources
+Data sources are as follows:
+
+- **COVID-19 Test Results**: The number of positive and negative COVID-19 test results come from the Florida Department of Health: https://floridahealthcovid19.gov/.
+- **COVID-19 Hospital Census**: The hospitalization data is disseminated by Florida’s Agency for Health Care Administration: https://ahca.myflorida.com/.
+
+

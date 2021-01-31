@@ -1,0 +1,1350 @@
+---
+title: "South Florida COVID-19 Trajectory"
+author: "Roy Williams, Gabriel J. Odom, Zoran Bursac, and Mary Jo Trepka"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
+
+
+
+
+
+# Introduction
+
+Public understanding of science is critical in times of crisis. The following analysis was conducted to examine the trajectory of COVID-19 in the South Florida counties of Miami-Dade, Broward, and Palm Beach. For phased reopening, the White House has set guidelines for local municipalities in their “Opening Up American Again” report. In the report, it is highly suggested that:
+
+1. Local areas show a downward trajectory in the number of positive cases as a percent of total tests over a two-week period, and
+2. Local hospitals have capacity to handle all patients without crisis care.
+
+The analysis begins by looking at the number of new positive cases each day and the number of total tests performed each day. The figures are presented together because **as there is more testing, there are likely to be more positive test results**. Therefore, the proportion of positive cases is also calculated. Given a flat or increasing number of tests performed, **the proportion of positive cases is the key metric to be used when looking at epidemic trajectory**. It is recommended that this proportion <ins>not exceed</ins> 5%.
+
+Finally, to ensure hospitals can meet demand without crisis care, the COVID-19 positive hospitalization census, COVID-19 positive ICU census, and COVID-19 positive ventilation census is plotted over time. Census refers to the number of COVID-19 positive patients in the hospital, ICU, and on ventilators, respectively, on a given day.
+
+For Miami-Dade, Broward, and Palm Beach Counties, this document shows the
+
+- Full testing counts data,
+- Count of positive and total COVID-19 tests since mid-March,
+- Proportion of positive counts to total counts within the last two weeks,
+- Proportion of positive counts to total counts since mid-March,
+- Full COVID-19 hospitalization census data, and
+- Counts of patients hospitalized with COVID-19 since the beginning of April
+
+**Note: 5-day moving averages are used to smooth data.** 
+**Note: On 8/31 there was a one-time historical data submission of a large number of cases from a large laboratory. The number of cases for 8/31 in the current report excludes this historical data submission.**
+**Note: a data dump of previously reported results prevented the reporting system from normal processing of lab results on October 9th, causing an inaccurate representation of data for October 9th and October 10th.**
+
+
+<!-- Include code to setup and import data here: -->
+```{r packages}
+library(tidyverse)
+library(lubridate)
+library(cowplot)
+library(kableExtra)
+library(readxl)
+```
+
+```{r rolling_mean_function}
+RollUp <- function(.x, .w, .f = mean, ...){
+	# Find "Rolling" values of a specified function
+	# Inputs:
+	#   .x: a vector (usually numeric) over which to "roll" the function .f
+	#   .w: the window size
+	#   .f: the fuction to "roll" over the values of .x
+	#   ...: additional arguments to .f
+	# Output: a vector the length of .x with the first (.w - 1) values set to NA
+	#   and the remaining values equal to .f evaluated over the previous window.
+	# Details: for a five-day moving average, set .w = 5. Then the moving average
+	#   of .x at index 5 will be mean(.x[1], .x[2], ..., .x[5]).
+	# Examples:
+	#   # Rolling mean of first five integers
+	#   RollUp(.x = 1:10, .w = 5)
+	
+	n <- length(.x)
+	out <- rep(NA, times = n)
+	class(out) <- class(.x)
+	
+	for(i in .w:n) {
+		out[i] <- .f(.x[(i - .w + 1):i])
+	}
+	
+	out
+	
+}
+```
+
+```{r import_ESS_data}
+# Raw data import and wrangling script sfl_COVID_report_wrangleESS_20200625.R
+#   in covid19_sfl_website/southFL_covid19_website/code/
+southFloridaHospitalised_df <- 
+	read_csv(
+		file = "../../data/ESS_processed/ESS_southFL_summary_20201108.csv"
+	)
+
+startEndESS_date <- 
+	southFloridaHospitalised_df %>%
+	slice(1, n()) %>%
+	pull(Date) 
+```
+
+```{r import_deaths_data}
+# Import Deaths Data
+deathsbyday_df <- read_csv(
+	"../../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20201108.csv"
+) %>% 
+	# Deaths are now ten weeks behind
+	filter(Date <= "2020-08-02")
+
+startEndDeaths_date <- 
+	deathsbyday_df %>%
+	filter(County == "Dade") %>% 
+	slice(1, n()) %>%
+	pull(Date) 
+```
+
+*******************************************************************************
+
+
+
+
+# Miami-Dade County
+
+
+## COVID-19 Testing Data
+```{r md_read_data}
+mdCases_df <- read_csv(
+	file = "../../data/cases/FLDH_COVID19_cases_miamidade_20201108.csv"
+) %>% 
+	mutate(PropPositive = 100 * Positive / (Positive + Negative)) 
+```
+
+```{r md_fix_dates}
+mdCases2_df <- 
+	mdCases_df %>%
+	mutate(Total = Positive + Negative) %>% 
+	mutate(Date = as.POSIXct(strptime(Date, format = "%d-%b"))) %>% 
+	mutate(Date = as_date(Date)) %>% 
+	mutate(Positive = RollUp(.x = Positive, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Negative = RollUp(.x = Negative, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Total = RollUp(.x = Total, .w = 5, na.rm = TRUE)) %>%
+	mutate(PropPositive = 100 * Positive / Total)
+
+startEnd_date <- 
+	mdCases2_df %>%
+	slice(1, n()) %>%
+	pull(Date) %>%
+	format("%d %B")
+```
+
+```{r md_recent_data}
+mdRecent_df <- 
+	mdCases2_df %>% 
+	top_n(15, Date)
+
+# Date Range
+recentStartEnd_date <- 
+	mdRecent_df %>%
+	slice(1, n()) %>%
+	pull(Date) %>%
+	format("%d %B")
+
+# Recent Linear Trend Slope for Total Counts
+mdRecentTCountSlope_num <-
+	mdRecent_df %>% 
+	lm(Positive + Negative ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Recent Linear Trend Slope for Positive Counts
+mdRecentPCountSlope_num <-
+	mdRecent_df %>% 
+	lm(Positive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Recent Linear Trend Slope for Proportion
+mdRecentSlope_num <-
+	mdRecent_df %>% 
+	lm(PropPositive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Slope Adjective:
+mdAdjective <- case_when(
+	abs(mdRecentSlope_num) < 0.1 ~ "slight",
+	abs(mdRecentSlope_num) < 0.5 ~ "",
+	abs(mdRecentSlope_num) > 0.5 ~ "significant"
+)
+```
+
+### Full Data
+This is a table of the most recent data we have available. We include data sources at the end of the document.
+```{r}
+knitr::kable(mdCases2_df) %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+</br>
+
+### Total COVID-19 Tests by Day
+The average number of COVID-19 tests performed each day increased from about 2,000 in to in early April to around 12,500 in August. Over the past two weeks, there has been an average increase of `r round(mdRecentTCountSlope_num)` additional tests performed each day in Miami-Dade County. This data is presented on a log scale.
+
+
+
+```{r md_tests_over_time}
+nTotal_gg <- 
+	ggplot(data = mdCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Total) + 
+	scale_y_log10(
+		breaks = c(2000, 5000, 10000),
+		labels = c("2k", "5k", "10k")
+	) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Number of COVID-19 Tests by Day",
+		subtitle = paste(
+			"Miami-Dade County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+	
+	stat_smooth(method = "loess", colour = "black") +
+  geom_point(colour = "black")
+
+nTotal_gg
+```
+
+### Positive COVID-19 Tests by Day
+There was a general decrease in the number of new positive test results from early April until around mid May when Miami-Dade reopened. Afterwards, this trend flattened out and then increased. Over the past two weeks, there has been an average increase of `r round(mdRecentPCountSlope_num, 2)` additional positive cases each day, per day in Miami-Dade County. 
+
+
+```{r md_cases_over_time}
+nPositive_gg <- 
+	ggplot(data = mdCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Positive) + 
+	# scale_y_log10() +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Number of Positive COVID-19 Tests Results by Day",
+		subtitle = paste(
+			"Miami-Dade County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		)
+	) + 
+	
+	stat_smooth(method = "loess", colour = "green") +
+	geom_point(colour = "green") 
+
+nPositive_gg
+```
+
+### Proportion of Positive Cases within Past Two Weeks 
+During the 14-day period from `r recentStartEnd_date[1]` to `r recentStartEnd_date[2]`, there was a <b> `r mdAdjective` `r if (mdRecentSlope_num > 0) "increase" else "decrease"` </b> in the proportion of positive COVID-19 cases reported in Miami-Dade County. Over this period, there was an average change of `r round(mdRecentSlope_num, 3)` percentage points per day for new positive cases. Given a flat or increasing number of tests performed, the proportion of positive tests obtained is the **key metric** for examining COVID-19 trajectory.
+
+```{r md_recent_proportion}
+# Plot
+ggplot(data = mdRecent_df) +
+	
+	theme_bw() +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive Test Results within the Past Two Weeks",
+		subtitle = paste(
+			"Miami-Dade County;",
+			recentStartEnd_date[1], "to", recentStartEnd_date[2],
+			"2020; Linear Change =",
+			round(mdRecentSlope_num, 3)
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor.",
+		y = "Proportion (%) of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "black") +
+	stat_smooth(method = "lm", colour = "black", se = FALSE, linetype = "dashed")
+```
+
+### Proportion of Positive COVID-19 Tests by Day
+Overall, the proportion of positive test results out of all tests **decreased significantly** from just under 20% in early April to the proportion of about 5% at the end of May. This is function of test availability and the population being tested. **After reopening, the proportion of positive tests increased steadily until late July. Subsequently, there was a consistent decline in positivity rate until mid-September. Recently, the change positivity rate has plateaued.** 
+
+```{r md_prop_over_time_full}
+ggplot(data = mdCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Overall Proportion of Positive Test Results Out of All Tests",
+		subtitle = paste(
+			"Miami-Dade County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		),
+		caption = "Solid line: LOESS Predictor",
+		y = "Proportion (%) of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "orange") +
+  geom_point(
+    data = tibble(
+      Date = as_date("2020-05-18"),
+      y = 0
+    ),
+    aes(x = Date, y = y),
+    pch = 24, size = 2, fill = "red"
+  )
+```
+
+
+
+## COVID-19 Hospitalization Data
+
+### Full Data
+```{r md_hosp_data}
+miamidadeHospitalised_df <- 
+	southFloridaHospitalised_df %>% 
+	filter(County == "MIAMI-DADE")
+
+miamidadeHospitalised_df[
+	miamidadeHospitalised_df$Date == "2020-06-04",
+	"Ventilated"
+] <- NA_real_
+# There is an error in the original data for June 4th. Rather than deleting the
+#   whole row of the raw data, we are skipping this ventilation value
+
+miamidadeHospitalised2_df <- 
+	miamidadeHospitalised_df %>% 
+	mutate(Hospitalized = RollUp(.x = Hospitalized, .w = 5, na.rm = TRUE)) %>% 
+	mutate(ICU = RollUp(.x = ICU, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Ventilated= RollUp(.x = Ventilated, .w = 5, na.rm = TRUE))
+
+
+miamidadeCOVID_df <-
+	miamidadeHospitalised2_df %>%
+	select(-County, -AdmitPrevDay, -DischPrevDay, -DeltaAdmit) %>% 
+	pivot_longer(
+		Hospitalized:Ventilated,
+		names_to = "Type",
+		values_to = "Count"
+	)
+```
+
+The data below is COVID-19 hospital census data for Miami-Dade County for all dates with available data since April 2.These columns are: the number of patients hospitalized with COVID-19 (**Hospitalized**), the number of patients in intensive care with COVID-19 (**ICU**), the number of patients in intensive care with COVID-19 who are also on ventilators (**Ventilated**), the number of patients positive for COVID-19 that were admitted the previous day (**AdmitPrevDay**), the number of patients recovered from COVID-19 that were discharged the previous day (**DischPrevDay**), and the net admission of patients positive for COVID-19 the previous day (**DeltaAdmit**; a negative value means more recovered patients were discharged than sick patients admitted).
+
+```{r md_print_hosp_data}
+miamidadeHospitalised_df %>% 
+  knitr::kable() %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+</br>
+
+
+### Hospital COVID-19 Census Trajectory
+We now show a census plot of hospitalizations, patients in ICU, and those in ICU on ventilators (shown on a log scale) for Miami-Dade County.
+
+**Recently, on October 27th, there were 424 COVID positive patients hospitalized. This was a decrease from a high of 2299 obtained on July 21st. Additionally on October 27th, there were 103 COVID positive patients in the ICU. This was a decrease from from a high of 561 obtained on July 26th. Furthermore, on October 27th, there were 64 COVID positive patients ventilated. This was a decrease from a high of 335 obtained on July 24th. **  Note: data is plotted on a log scale.
+
+```{r md_graph_hosp_counts, warning = FALSE}
+ggplot(data = miamidadeCOVID_df) +
+
+	theme_bw() +
+	theme(
+		axis.text.x = element_text(angle = 45, hjust = 1),
+		legend.position = "bottom"
+	) +
+	aes(x = Date, y = Count, group = Type, colour = Type) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	scale_y_log10() +
+	scale_color_manual(
+		values = c(
+			"Ventilated" = "#ff0000",
+			"ICU" = "#ff7400",
+			"Hospitalized" = "#ffc100"
+		)
+	) +
+	labs(
+		title = "Overall Miami-Dade County Hospital COVID-19 Census",
+		subtitle = paste(
+			"Miami-Dade County;",
+			format(startEndESS_date[1], "%d %B"),
+			"to",
+			format(startEndESS_date[2], "%d %B"),
+			"2020"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+
+	geom_point(size = 2) +
+	stat_smooth(se = FALSE)
+```
+
+We also show the proportion of patients hospitalized who are in the ICU and the proportion of those patients in the ICU who are ventilated.
+```{r md_ICU_vent_props, warning=FALSE}
+
+Percent_Intensive<-miamidadeHospitalised2_df %>% 
+	mutate(PctICU = 100 * ICU / Hospitalized) %>%
+	mutate(across(where(is.numeric), round, 2))
+
+Percent_Ventilated <-miamidadeHospitalised2_df %>%
+	mutate(PctVentICU = 100 * Ventilated / ICU) %>%
+	mutate(across(where(is.numeric), round, 2))
+
+
+
+
+ggplot(data = miamidadeHospitalised2_df %>% 
+		mutate(PctICU = 100 * ICU / Hospitalized) %>% 
+		mutate(PctVentICU = 100 * Ventilated / ICU) %>% 
+		select(Date, PctICU, PctVentICU) %>% 
+		pivot_longer(
+		PctICU:PctVentICU,
+		names_to = "Type",
+		values_to = "Proportion"
+	)
+) + 
+	
+	theme_bw() +
+	theme(
+		axis.text.x = element_text(angle = 45, hjust = 1),
+		legend.position = "bottom"
+	) +
+	aes(x = Date, y = Proportion, group = Type, colour = Type) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	scale_color_manual(
+		labels = c("In ICU", "In ICU on Ventilators"),
+		values = c(
+			"PctVentICU" = "#ff0000",
+			"PctICU" = "#ff7400"
+		)
+	) +
+	labs(
+		title = "Miami-Dade County Hospital Percent in ICU and Ventilated",
+		subtitle = paste(
+			"Miami-Dade County;",
+			format(startEndESS_date[1], "%d %B"),
+			"to",
+			format(startEndESS_date[2], "%d %B"),
+			"2020"
+		),
+		caption = 
+			"% of Patients Hospitalized with COVID-19 who are in ICU (orange)\n % of Patients in ICU with COVID-19 who are on ventilators (red)",
+		y = "Proportions"
+	) +
+
+	geom_point(size = 2) +
+	stat_smooth(se = FALSE)
+```
+
+Currenly `r Percent_Intensive$PctICU[nrow(Percent_Intensive)]` % of COVID positive patients hospitalized are receiving intensive care. Of the patients recieving intensive care,  `r Percent_Ventilated$PctVentICU[nrow(Percent_Ventilated)]` % are on venatilators.
+
+
+
+
+# COVID-19 Deaths by Day
+```{r md_deaths_data}
+deathsbyday_df %>% 
+	filter(County == "Dade") %>% 
+  knitr::kable() %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+```{r}
+#Plot Deaths
+
+ggplot(
+	deathsbyday_df %>% 
+		filter(County == "Dade") %>% 
+		mutate(Count = RollUp(.x = Count, .w = 5, na.rm = TRUE))
+	
+) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Count) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "COVID-19 Deaths per Day",
+		subtitle = paste(
+			"Miami-Dade County;",
+			format(startEndDeaths_date[1], "%d %B"),
+			"to",
+			format(startEndDeaths_date[2], "%d %B"),
+			"2020"
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor."
+		
+	)+
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "red") +
+	geom_point(
+		data = tibble(
+			Date = as_date("2020-05-18"),
+			y = 0
+		),
+		aes(x = Date, y = y),
+		pch = 24, size = 2, fill = "orange"
+	)
+```
+
+Overall from March 16th to  approximately May 25th in Miami-Dade County, there was a  decrease in the number of deaths per day. The orange triangle depicts the county reopening date. This decrease in deaths may be attributable to advances in COVID-19 treatments and standard of care. A decrease in median age of those impacted could also partially explain this decrease. **After May 25th, there was an increase in deaths reported per day for Miami-Dade County culminating in a peak during the second week of July. Aftewards, the number of reported deaths per day has started to decrease. The peak number of deaths so far reported was 76 on July 17th.**
+
+**Note: Due to delays in classifying the cause of death and thus of reporting deaths due to COVID-19, the most recent data will undercount the number of deaths. Specifically, 25% of newly reported deaths were from on or before August 2nd. This date indicates a point where 75% of our data is considered complete. For this reason, approximately the last 13 weeks were excluded from this analysis of deaths.**
+
+*******************************************************************************
+
+
+
+
+# Broward County
+
+
+## COVID-19 Testing Data
+```{r brow_read_data}
+browCases_df <- read_csv(
+	file = "../../data/cases/FLDH_COVID19_cases_broward_20201108.csv"
+) %>% 
+	# Crazy outlier on the 8th of April; drop it
+	filter(Date != "8-Apr")
+```
+
+```{r brow_fix_dates}
+browCases2_df <- 
+	browCases_df %>% 
+	mutate(Total = Positive + Negative) %>% 
+	mutate(Date = as.POSIXct(strptime(Date, format = "%d-%b"))) %>% 
+	mutate(Date = as_date(Date)) %>% 
+	mutate(Positive = RollUp(.x = Positive, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Negative = RollUp(.x = Negative, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Total = RollUp(.x = Total, .w = 5, na.rm = TRUE)) %>%
+	mutate(PropPositive = 100 * Positive / Total)
+
+```
+
+```{r brow_recent_data}
+browRecent_df <- 
+	browCases2_df %>% 
+	top_n(15, Date)
+
+# Recent Linear Trend Slope for Total Counts
+browRecentTCountSlope_num <-
+	browRecent_df %>% 
+	lm(Positive + Negative ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Recent Linear Trend Slope for Positive Counts
+browRecentPCountSlope_num <-
+	browRecent_df %>% 
+	lm(Positive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Recent Linear Trend Slope
+browRecentSlope_num <-
+	browRecent_df %>% 
+	lm(PropPositive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Slope Adjective:
+browAdjective <- case_when(
+	abs(browRecentSlope_num) < 0.1 ~ "slight",
+	abs(browRecentSlope_num) < 0.5 ~ "",
+	abs(browRecentSlope_num) > 0.5 ~ "significant"
+)
+```
+
+### Full Data
+```{r}
+knitr::kable(browCases_df) %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+</br>
+
+
+### Total COVID-19 Tests by Day
+Over the past two weeks, there has been an average increase of `r round(browRecentTCountSlope_num)` additional tests performed each day in Broward County. This data is presented on a log scale.
+
+```{r brow_tests_over_time, warning=FALSE}
+nTotal_gg <- 
+	ggplot(
+		data = browCases2_df %>%
+			mutate(Total = Positive + Negative)
+	) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Total) + 
+	scale_y_log10(
+		breaks = c(2000, 5000, 10000),
+		labels = c("2k", "5k", "10k")
+	) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Number of COVID-19 Tests by Day",
+		subtitle = paste(
+			"Broward County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+	
+	stat_smooth(method = "loess", colour = "black") +
+  geom_point(colour = "black")
+
+nTotal_gg
+```
+
+### Positive COVID-19 Tests by Day
+There was a general decrease in the number of new positive test results from early April until around May 11th. Afterwards, this trend flattened out and then increased. Over the past two weeks, there has been a <b> `r browAdjective` `r if (browRecentPCountSlope_num > 0) "increase of" else "decrease of"` </b>  `r round(browRecentPCountSlope_num, 1)` additional positive cases each day, per day in Broward County.
+
+```{r brow_cases_over_time, warning=FALSE}
+nPositive_gg <- 
+	ggplot(data = browCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Positive) + 
+	# scale_y_log10() +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Number of Positive COVID-19 Tests Results by Day",
+		subtitle = paste(
+			"Broward County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		)
+	) + 
+	
+	stat_smooth(method = "loess", colour = "green") +
+	geom_point(colour = "green") 
+
+nPositive_gg
+```
+
+### Proportion of Positive Cases within Past Two Weeks
+During the 14-day period from `r recentStartEnd_date[1]` to `r recentStartEnd_date[2]`, there was a <b> `r browAdjective` `r if (browRecentSlope_num > 0) "increase" else "decrease"` </b> in the proportion of positive COVID-19 cases reported in Broward County. Over this period, there was an average change of `r round(browRecentSlope_num, 2)` percentage points per day for new positive cases.
+
+```{r brow_recent_proportion}
+# Plot
+ggplot(data = browRecent_df) +
+	
+	theme_bw() +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive Test Results within the Past Two Weeks",
+		subtitle = paste(
+			"Broward County;",
+			recentStartEnd_date[1], "to", recentStartEnd_date[2],
+			"2020; Linear Change =",
+			round(browRecentSlope_num, 3)
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor.",
+		y = "Proportion (%) of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "black") +
+	stat_smooth(method = "lm", colour = "black", se = FALSE, linetype = "dashed")
+```
+
+### Proportion of Positive COVID-19 Tests by Day
+This measure is a function of test availability and the population being tested.
+
+```{r brow_prop_over_time_full, warning=FALSE}
+ggplot(data = browCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Overall Proportion of Positive Test Results Out of All Tests",
+		subtitle = paste(
+			"Broward County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		),
+		caption = "Solid line: LOESS Predictor",
+		y = "Proportion (%) of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "orange") +
+  geom_point(
+    data = tibble(
+      Date = as_date("2020-05-18"),
+      y = 0
+    ),
+    aes(x = Date, y = y),
+    pch = 24, size = 2, fill = "red"
+  )
+```
+
+
+## COVID-19 Hospitalization Data
+```{r brow_hosp_data}
+browardHospitalised_df <- 
+	southFloridaHospitalised_df %>% 
+	filter(County == "BROWARD")
+
+browardHospitalised2_df <- 
+  browardHospitalised_df %>% 
+	mutate(Hospitalized = RollUp(.x = Hospitalized, .w = 5, na.rm = TRUE)) %>% 
+	mutate(ICU = RollUp(.x = ICU, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Ventilated= RollUp(.x = Ventilated, .w = 5, na.rm = TRUE))
+
+browardCOVID_df <-
+	browardHospitalised_df %>%
+	select(-County, -AdmitPrevDay, -DischPrevDay, -DeltaAdmit) %>% 
+	pivot_longer(
+		Hospitalized:Ventilated,
+		names_to = "Type",
+		values_to = "Count"
+	)
+```
+
+### Full Data
+```{r brow_print_hosp_data}
+browardHospitalised_df %>% 
+  knitr::kable() %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+</br>
+
+
+### Hospital COVID-19 Census Trajectory
+We now show a census plot of hospitalizations, patients in ICU, and those in ICU on ventilators (shown on a log scale) for Broward County.
+
+**On October 27th, `r browardHospitalised_df$Hospitalized[nrow(browardHospitalised_df)]` COVID-positive patients were hospitalized, this was down from a high of 1442 hospitalized on July 23rd. On October 27th, `r browardHospitalised_df$ICU[nrow(browardHospitalised_df)]` COVID-positive patients were in the ICU, this was down from a high of 291 on July 24th. Finally, on October 27th, `r browardHospitalised_df$Ventilated[nrow(browardHospitalised_df)]` COVID-positive patients were on ventilators, this was down from a high of 223 on July 28th. Overall the past two week, the number in hospitals has been stable.**
+
+```{r brow_graph_hosp_counts, warning = FALSE}
+ggplot(data = browardCOVID_df) +
+
+	theme_bw() +
+	theme(
+		axis.text.x = element_text(angle = 45, hjust = 1),
+		legend.position = "bottom"
+	) +
+	aes(x = Date, y = Count, group = Type, colour = Type) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	scale_y_log10() +
+	scale_color_manual(
+		values = c(
+			"Ventilated" = "#ff0000",
+			"ICU" = "#ff7400",
+			"Hospitalized" = "#ffc100"
+		)
+	) +
+	labs(
+		title = "Overall Broward County Hospital COVID-19 Census",
+		subtitle = paste(
+			"Broward County;",
+			format(startEndESS_date[1], "%d %B"),
+			"to",
+			format(startEndESS_date[2], "%d %B"),
+			"2020"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+
+	geom_point(size = 2) +
+	stat_smooth(se = FALSE)
+```
+
+We also show the proportion of patients hospitalized who are in the ICU and the proportion of those patients in the ICU who are ventilated.
+```{r brow_ICU_vent_props, warning=FALSE}
+ggplot(
+	data = browardHospitalised2_df %>% 
+		mutate(PctICU = 100 * ICU / Hospitalized) %>% 
+		mutate(PctVentICU = 100 * Ventilated / ICU) %>% 
+		select(Date, PctICU, PctVentICU) %>% 
+		pivot_longer(
+		PctICU:PctVentICU,
+		names_to = "Type",
+		values_to = "Proportion"
+	)
+) + 
+	
+	theme_bw() +
+	theme(
+		axis.text.x = element_text(angle = 45, hjust = 1),
+		legend.position = "bottom"
+	) +
+	aes(x = Date, y = Proportion, group = Type, colour = Type) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	scale_color_manual(
+		labels = c("In ICU", "In ICU on Ventilators"),
+		values = c(
+			"PctVentICU" = "#ff0000",
+			"PctICU" = "#ff7400"
+		)
+	) +
+	labs(
+		title = "Broward County Hospital Percent in ICU and Ventilated",
+		subtitle = paste(
+			"Broward County;",
+			format(startEndESS_date[1], "%d %B"),
+			"to",
+			format(startEndESS_date[2], "%d %B"),
+			"2020"
+		),
+		caption = 
+			"% of Patients Hospitalized with COVID-19 who are in ICU (orange)\n % of Patients in ICU with COVID-19 who are on ventilators (red)",
+		y = "Proportions"
+	) +
+
+	geom_point(size = 2) +
+	stat_smooth(se = FALSE)
+```
+
+Overall, the percentage of COVID-19 hospitalized patients needing intensive care has decreased from over 35% in early April, to the current rate of approximately 25%. In addition, the percentage of COVID-19 ICU patients requiring ventilation decreased from over approximately 85% in early April to under 75% currently.
+
+# COVID-19 Deaths by Day
+```{r broward_deaths_data}
+deathsbyday_df %>% 
+	filter(County == "Broward") %>% 
+  knitr::kable() %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+
+
+```{r}
+#plot deaths
+ggplot(
+	deathsbyday_df %>% 
+		filter(County == "Broward") %>% 
+		mutate(Count = RollUp(.x = Count, .w = 5, na.rm = TRUE))
+) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Count) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "COVID-19 Deaths per Day",
+		subtitle = paste(
+			"Broward County;",
+			format(startEndDeaths_date[1], "%d %B"),
+			"to",
+			format(startEndDeaths_date[2], "%d %B"),
+			"2020"
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor."
+		
+	)+
+	
+	geom_point() +
+	
+	stat_smooth(method = "loess", colour = "red") +
+	geom_point(
+		data = tibble(
+			Date = as_date("2020-05-18"),
+			y = 0
+		),
+		aes(x = Date, y = y),
+		pch = 24, size = 2, fill = "orange"
+	)
+#stat_smooth(method = "lm", colour = "blue", se = FALSE, linetype = "dashed")
+```
+
+In Broward County, death rose until mid April before decreasing until approximately May 18th, the day the county opened (depicted by orange triangle). **After May 18th, there was an increase in deaths reported per day for Broward County culminating in a peak during the second week of July. Aftewards, the number of reported deaths per day has started to decrease The peak number of deaths per day thus far reported was 36 on July 9th.**
+
+**Note: Due to delays in classifying the cause of death and thus of reporting deaths due to COVID-19, the most recent data will undercount the number of deaths. Specifically, 25% of newly reported deaths were from on or before August 2nd. This date indicates a point where 75% of our data is considered complete. For this reason, approximately the last 13 weeks were excluded from this analysis of deaths.**
+
+*******************************************************************************
+
+
+
+
+# Palm Beach County
+
+
+## COVID-19 Testing Data
+```{r pb_read_data}
+pbCases_df <- read_csv(
+	file = "../../data/cases/FLDH_COVID19_cases_palmbeach_20201108.csv"
+)
+
+```
+
+```{r pb_fix_dates}
+pbCases2_df <- 
+	pbCases_df %>% 
+	mutate(Total = Positive + Negative) %>% 
+	mutate(Date = as.POSIXct(strptime(Date, format = "%d-%b"))) %>% 
+	mutate(Date = as_date(Date)) %>% 
+	mutate(Positive = RollUp(.x = Positive, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Negative = RollUp(.x = Negative, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Total = RollUp(.x = Total, .w = 5, na.rm = TRUE)) %>%
+	mutate(PropPositive = 100 * Positive / Total)
+``` 
+
+```{r pb_recent_data}
+pbRecent_df <- 
+	pbCases2_df %>% 
+	top_n(15, Date)
+
+# Recent Linear Trend Slope for Total Counts
+pbRecentTCountSlope_num <-
+	pbRecent_df %>% 
+	lm(Positive + Negative ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Recent Linear Trend Slope for Positive Counts
+pbRecentPCountSlope_num <-
+	pbRecent_df %>% 
+	lm(Positive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Recent Linear Trend Slope
+pbRecentSlope_num <-
+	pbRecent_df %>% 
+	lm(PropPositive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Slope Adjective:
+pbAdjective <- case_when(
+	abs(pbRecentSlope_num) < 0.1 ~ "slight",
+	abs(pbRecentSlope_num) < 0.5 ~ "",
+	abs(pbRecentSlope_num) > 0.5 ~ "significant"
+)
+```
+
+### Full Data
+```{r}
+knitr::kable(pbCases_df) %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+</br>
+
+
+### Total COVID-19 Tests by Day
+The average number of COVID-19 tests performed each day has increased from about 500 in early April to roughly 5000 in July. Over the past two weeks, there has been an average change of `r round(pbRecentTCountSlope_num)` additional tests performed each day in Palm Beach County. This data is presented on a log scale.
+
+```{r pb_tests_over_time, warning=FALSE}
+nTotal_gg <- 
+	ggplot(
+		data = pbCases2_df
+	) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Total) + 
+	scale_y_log10(
+		breaks = c(2000, 5000, 10000),
+		labels = c("2k", "5k", "10k")
+	) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Number of COVID-19 Tests by Day",
+		subtitle = paste(
+			"Palm Beach County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+	
+	stat_smooth(method = "loess", colour = "black") +
+  geom_point(colour = "black")
+
+nTotal_gg
+```
+
+### Positive COVID-19 Tests by Day
+There was a general decrease in the number of new positive test results from early April until around May 11th. Afterwards, this trend flattened out and then increased. Over the past two weeks, there has been an average change of `r round(pbRecentPCountSlope_num,)` additional positive cases each day, per day in Palm Beach County.
+
+```{r pb_cases_over_time, warning=FALSE}
+nPositive_gg <- 
+	ggplot(data = pbCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Positive) + 
+	# scale_y_log10() +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Number of Positive COVID-19 Tests Results by Day",
+		subtitle = paste(
+			"Palm Beach County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		)
+	) + 
+	
+	stat_smooth(method = "loess", colour = "green") +
+	geom_point(colour = "green") 
+
+nPositive_gg
+```
+
+### Proportion of Positive Cases within Past Two Weeks
+During the 14-day period from `r recentStartEnd_date[1]` to `r recentStartEnd_date[2]`, there was a <b> `r pbAdjective` `r if (pbRecentSlope_num > 0) "increase" else "decrease"` </b> in the proportion of positive COVID-19 cases reported in Palm Beach County. Over this period, there was an average change of `r round(pbRecentSlope_num, 3)` percentage points per day for new positive cases.
+
+```{r pb_recent_proportion}
+# Plot
+ggplot(data = pbRecent_df) +
+	
+	theme_bw() +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive Test Results within the Past Two Weeks",
+		subtitle = paste(
+			"Palm Beach County;",
+			recentStartEnd_date[1], "to", recentStartEnd_date[2],
+			"2020; Linear Change =",
+			round(pbRecentSlope_num, 3)
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor.",
+		y = "Proportion (%) of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "black") +
+	stat_smooth(method = "lm", colour = "black", se = FALSE, linetype = "dashed")
+```
+
+### Proportion of Positive COVID-19 Tests by Day
+Overall, the proportion of positive test results out of all tests **decreased significantly** from over 15% in April to the proportion of about 6% at the end of May. This is a function of test availability and the population being tested. Overall, since the county reopened on May 11th, the proportion of positive tests increased over time until mid July before decreasing again.
+
+```{r pb_prop_over_time_full, warning=FALSE}
+ggplot(data = pbCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Overall Proportion of Positive Test Results Out of All Tests",
+		subtitle = paste(
+			"Palm Beach County;",
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		),
+		caption = "Solid line: LOESS Predictor",
+		y = "Proportion (%) of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "orange") +
+  geom_point(
+    data = tibble(
+      Date = as_date("2020-05-11"),
+      y = 0
+    ),
+    aes(x = Date, y = y),
+    pch = 24, size = 2, fill = "red"
+  )
+```
+
+
+## COVID-19 Hospitalization Data
+```{r pb_hosp_data}
+palmbeachHospitalised_df <- 
+	southFloridaHospitalised_df %>% 
+	filter(County == "PALM BEACH")
+
+palmbeachHospitalised2_df <-
+	palmbeachHospitalised_df %>% 
+	mutate(Hospitalized = RollUp(.x = Hospitalized, .w = 5, na.rm = TRUE)) %>% 
+	mutate(ICU = RollUp(.x = ICU, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Ventilated= RollUp(.x = Ventilated, .w = 5, na.rm = TRUE))
+
+
+palmbeachCOVID_df <-
+	palmbeachHospitalised2_df %>%
+	select(-County, -AdmitPrevDay, -DischPrevDay, -DeltaAdmit) %>% 
+	pivot_longer(
+		Hospitalized:Ventilated,
+		names_to = "Type",
+		values_to = "Count"
+	)
+```
+
+### Full Data
+
+```{r pb_print_hosp_data}
+palmbeachHospitalised_df %>% 
+  knitr::kable() %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+</br>
+
+
+### Hospital COVID-19 Census Trajectory
+We now show a census plot of hospitalizations, patients in ICU, and those in ICU on ventilators (shown on a log scale) for Palm Beach County.
+
+**On October 27th, there were `r palmbeachHospitalised_df$Hospitalized[nrow(palmbeachHospitalised_df)]` COVID-positive patients hospitalized, this was down from a high of 689 on July 16th. On October 27th, there were `r palmbeachHospitalised_df$ICU[nrow(palmbeachHospitalised_df)]` COVID-positive patients in the ICU, this was down from a high of 151 on July 14th. Finally, On October 27th, there were `r palmbeachHospitalised_df$Ventilated[nrow(palmbeachHospitalised_df)]` COVID-positive patients ventilated, this was down from a reported high of 105 on July 9th. Howver, over the past two weeks, the number in hospitals has increased.**
+
+```{r pb_graph_hosp_counts, warning = FALSE}
+ggplot(data = palmbeachCOVID_df) +
+
+	theme_bw() +
+	theme(
+		axis.text.x = element_text(angle = 45, hjust = 1),
+		legend.position = "bottom"
+	) +
+	aes(x = Date, y = Count, group = Type, colour = Type) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	scale_y_log10() +
+	scale_color_manual(
+		values = c(
+			"Ventilated" = "#ff0000",
+			"ICU" = "#ff7400",
+			"Hospitalized" = "#ffc100"
+		)
+	) +
+	labs(
+		title = "Overall Palm Beach County Hospital COVID-19 Census",
+		subtitle = paste(
+			"Palm Beach County;",
+			format(startEndESS_date[1], "%d %B"),
+			"to",
+			format(startEndESS_date[2], "%d %B"),
+			"2020"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+
+	geom_point(size = 2) +
+	stat_smooth(se = FALSE)
+```
+
+We also show the proportion of patients hospitalized who are in the ICU and the proportion of those in the ICU who are ventilated.
+```{r pb_ICU_vent_props, warning=FALSE}
+ggplot(
+	data = palmbeachHospitalised2_df %>% 
+		mutate(PctICU = 100 * ICU / Hospitalized) %>% 
+		mutate(PctVentICU = 100 * Ventilated / ICU) %>% 
+		select(Date, PctICU, PctVentICU) %>% 
+		pivot_longer(
+		PctICU:PctVentICU,
+		names_to = "Type",
+		values_to = "Proportion"
+	)
+) + 
+	
+	theme_bw() +
+	theme(
+		axis.text.x = element_text(angle = 45, hjust = 1),
+		legend.position = "bottom"
+	) +
+	aes(x = Date, y = Proportion, group = Type, colour = Type) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	scale_color_manual(
+		labels = c("In ICU", "In ICU on Ventilators"),
+		values = c(
+			"PctVentICU" = "#ff0000",
+			"PctICU" = "#ff7400"
+		)
+	) +
+	labs(
+		title = "Palm Beach County Hospital Percent in ICU and Ventilated",
+		subtitle = paste(
+			"Palm Beach County;",
+			format(startEndESS_date[1], "%d %B"),
+			"to",
+			format(startEndESS_date[2], "%d %B"),
+			"2020"
+		),
+		caption = 
+			"% of Patients Hospitalized with COVID-19 who are in ICU (orange)\n % of Patients in ICU with COVID-19 who are on ventilators (red)",
+		y = "Proportions"
+	) +
+
+	geom_point(size = 2) +
+	stat_smooth(se = FALSE)
+```
+
+Currently, under 40% of COVID-19 hospitalized individuals are in the ICU. Under 50% of those in the ICU require ventilation.
+
+# COVID-19 Deaths by Day
+```{r pb_deaths_data}
+deathsbyday_df %>% 
+	filter(County == "Palm Beach") %>% 
+  knitr::kable() %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+```{r}
+#Plot Deaths
+
+ggplot(
+	deathsbyday_df %>% 
+		filter(County == "Palm Beach") %>% 
+		mutate(Count = RollUp(.x = Count, .w = 5, na.rm = TRUE))
+) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Count) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "COVID-19 Deaths per Day",
+		subtitle = paste(
+			"Palm Beach County;",
+			format(startEndDeaths_date[1], "%d %B"),
+			"to",
+			format(startEndDeaths_date[2], "%d %B"),
+			"2020"
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor."
+		
+	)+
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "red") +
+	geom_point(
+		data = tibble(
+			Date = as_date("2020-05-11"),
+			y = 0
+		),
+		aes(x = Date, y = y),
+		pch = 24, size = 2, fill = "orange"
+	)
+```
+
+In Palm Beach County, COVID-positive deaths rose until mid April and afterward have been decreasing. This decrease in deaths may be attributable to advances in COVID-19 treatments and standard of care. A decrease in median age of those impacted could also partially explain this decrease. **From mid-June until approximately the end of July, there was an increase in reported deaths per day. This number is now declining. Thus far, the peak number of deaths per day was 25 on June 27th.**
+
+**Note: Due to delays in classifying the cause of death and thus of reporting deaths due to COVID-19, the most recent data will undercount the number of deaths. Specifically, 25% of newly reported deaths were from on or before August 2nd. This date indicates a point where 75% of our data is considered complete. For this reason, approximately the last 13 weeks were excluded from this analysis of deaths.**
+
+*******************************************************************************
+
+
+
+
+# Conclusion
+During the past two weeks, the number of positive COVID-19 tests has increased by an average of `r round(mdRecentPCountSlope_num)`, `r round(browRecentPCountSlope_num)`, and `r round(pbRecentPCountSlope_num)` each day for Miami-Dade, Broward, and Palm Beach Counties, respectively. All three counties experienced increases in cases, tests, case positivity and hospitalization census. All three counties experienced a decline in reported deaths. There is currently a 13 week delay in death reporting for the region.
+
+
+*******************************************************************************
+
+
+
+
+# Data Sources
+Data sources are as follows:
+
+- **COVID-19 Test Results**: The number of positive and negative COVID-19 test results come from the Florida Department of Health: https://urldefense.proofpoint.com/v2/url?u=https-3A__floridahealthcovid19.gov_&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=FiYrcPTgc7jv-lrsuxC7WrLfGdMPSiPryOfExF9RPiI&s=48_KO4WJjz8cwft_LHvv6hhMVNXChG3DXIF8zQew5-M&e= .
+- **COVID-19 Hospital Census**: The hospitalization data is disseminated by Florida’s Agency for Health Care Administration: https://urldefense.proofpoint.com/v2/url?u=https-3A__ahca.myflorida.com_&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=FiYrcPTgc7jv-lrsuxC7WrLfGdMPSiPryOfExF9RPiI&s=k0gnZiyqhunaH7AdFmstPtXIdtAILFsHokXtvNZjYY4&e= .
+- **COVID-19 Death Linelist**: This list is created and disseminated by Florida's Department of Health. Deaths are medical examiner confirmed.
+https://urldefense.proofpoint.com/v2/url?u=https-3A__floridahealthcovid19.gov&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=FiYrcPTgc7jv-lrsuxC7WrLfGdMPSiPryOfExF9RPiI&s=Gew0b4BHf_xQskxz0Edx77huzU3ZGcbArI47WlNW8bI&e= .

@@ -1,0 +1,414 @@
+---
+title: "S. Florida COVID-19 Trajectory"
+author: "Gabriel J. Odom, PhD, ThD"
+date: "5/22/2020"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+Analyse Daily COVID-19 Trajectory  
+
+```{r packages, message=FALSE}
+library(tidyverse)
+library(lubridate)
+```
+
+
+## Testing Data
+```{r read_data, message=FALSE}
+sflCases_df <- read_csv(
+	file = "../../data/FLDH_COVID19_cases_20200522.csv"
+)
+```
+
+```{r}
+knitr::kable(sflCases_df)
+```
+
+```{r fix_dates, message=FALSE}
+sflCases2_df <- 
+	sflCases_df %>% 
+	mutate(Date = as.POSIXct(strptime(Date, format = "%d-%b"))) %>% 
+	mutate(Date = as_date(Date)) 
+```
+
+We see the following pattern of positive and negative tests over the past month (shown on a log scale):
+```{r cases_over_time, message=FALSE}
+ggplot(data = sflCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date) + 
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	scale_y_log10() +
+	labs(
+		title = "Proportion of Positive COVID-19 in Miami Dade County",
+		subtitle = "2 April to 21 May, 2020",
+		caption = "Green represents a positive test result while blue is negative.",
+		y = "Counts (Log10 Scale)"
+	) +
+	
+	geom_point(aes(y = Positive), colour = "green") +
+	stat_smooth(aes(y = Positive), method = "loess", colour = "green") +
+  geom_point(aes(y = Negative), colour = "blue") +
+	stat_smooth(aes(y = Negative), method = "loess", colour = "blue")
+```
+
+### Data Leading up to Making the Decision to Open
+The proportion of positive tests over the two weeks before we decided to open the economy is (this is the data used to make the desicion to partially open the economy in Miami-Dade):
+```{r prop_over_time_before_open, message=FALSE}
+# Linear Trend Slope
+slope1 <- sflCases2_df %>% 
+	filter(Date > "2020-04-19") %>% 
+	filter(Date < "2020-05-05") %>% 
+	lm(PropPositive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Plot
+ggplot(
+	data = sflCases2_df %>% 
+		filter(Date > "2020-04-19") %>% 
+		filter(Date < "2020-05-05")
+) +
+	
+	theme_bw() +
+	aes(x = Date) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive COVID-19 in Miami Dade County",
+		subtitle = paste(
+			"20 April to 4 May, 2020; Linear Change =",
+			round(slope1, 3)
+		),
+		caption = "Solid line represents the LOESS Predictor; Dashed line for Linear.",
+		y = "Proportion of Positive Cases"
+	) +
+	
+	geom_point(aes(y = PropPositive)) +
+	stat_smooth(aes(y = PropPositive), method = "loess", colour = "black") +
+	stat_smooth(
+		aes(y = PropPositive),
+		method = "lm",
+		colour = "black",
+		se = FALSE,
+		linetype = "dashed"
+	)
+```
+
+### Data Between Publicising the Decision to Open and Opening
+The proportion of positive tests over the two weeks before we actually opened the economy is (this is what happened between when we decided to open the economy and declared it open):
+```{r prop_over_time_interim, message=FALSE}
+# Linear Trend Slope
+slope2 <- sflCases2_df %>% 
+	filter(Date > "2020-04-26") %>% 
+	filter(Date < "2020-05-12") %>% 
+	lm(PropPositive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Plot
+ggplot(
+	data = sflCases2_df %>% 
+		filter(Date > "2020-04-26") %>% 
+		filter(Date < "2020-05-12")
+) +
+	theme_bw() +
+	aes(x = Date) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive COVID-19 in Miami Dade County",
+		subtitle = paste(
+			"20 April to 4 May, 2020; Linear Change =",
+			round(slope2, 3)
+		),
+		caption = "Solid line represents the LOESS Predictor; Dashed line for Linear.",
+		y = "Proportion of Positive Cases"
+	) +
+	geom_point(aes(y = PropPositive)) +
+	stat_smooth(aes(y = PropPositive), method = "loess", colour = "black") +
+	stat_smooth(
+		aes(y = PropPositive),
+		method = "lm",
+		colour = "black",
+		se = FALSE,
+		linetype = "dashed"
+	)
+```
+
+### Data During the Open Economy
+The proportion of positive tests in the last two weeks before we actually opened the economy is (this is what happened when we declared the economy was open):
+```{r prop_over_time_after_open, message=FALSE}
+# Linear Trend Slope
+slope3 <- sflCases2_df %>% 
+	filter(Date > "2020-05-06") %>% 
+	lm(PropPositive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Plot
+ggplot(
+	data = sflCases2_df %>% 
+		filter(Date > "2020-05-06")
+) +
+	theme_bw() +
+	aes(x = Date) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive COVID-19 in Miami Dade County",
+		subtitle = paste(
+			"7 May to 21 May, 2020; Linear Change =",
+			round(slope3, 3)
+		),
+		caption = "Solid line represents the LOESS Predictor; Dashed line for Linear.",
+		y = "Proportion of Positive Cases"
+	) +
+	geom_point(aes(y = PropPositive)) +
+	stat_smooth(aes(y = PropPositive), method = "loess", colour = "black") +
+	stat_smooth(
+		aes(y = PropPositive),
+		method = "lm",
+		colour = "black",
+		se = FALSE,
+		linetype = "dashed"
+	)
+```
+
+### Full Data
+These are the proportions of positive tests for the full data.
+```{r prop_over_time_full, message=FALSE}
+ggplot(data = sflCases2_df) +
+	
+	theme_bw() +
+	aes(x = Date) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive COVID-19 in Miami Dade County",
+		subtitle = "2 April to 21 May, 2020",
+		caption = "Solid line represents the LOESS Predictor; Dashed line for Linear.",
+		y = "Proportion of Positive Cases"
+	) +
+	
+	geom_point(aes(y = PropPositive)) +
+	stat_smooth(aes(y = PropPositive), method = "loess", colour = "black") +
+	stat_smooth(
+		aes(y = PropPositive),
+		method = "lm",
+		colour = "black",
+		se = FALSE,
+		linetype = "dashed"
+	)
+```
+
+
+
+## Hospitalisation Data
+```{r hosptitalised}
+library(readxl)
+data_dir <- "../../data/"
+dataFiles_char <- list.files(path = data_dir, pattern = "ESS_.*hrs")
+
+read_excel_safely <- safely(read_excel)
+
+miamidadeHospitalised_ls <- 
+	map(
+		.x = dataFiles_char,
+		.f = ~{
+			
+	    df_ls <- read_excel_safely(
+	      path = paste0(data_dir, .x), 
+        sheet = "County_Bed_Availability_Report_", 
+        skip = 1
+      )
+	    
+	    if(is.null(df_ls$error)){
+	    	
+	    	df_ls$result %>%
+    	    filter(County == "MIAMI-DADE") %>%
+    	    select(contains("COVID")) %>%
+    	    mutate(
+    	    	Date_char = str_remove(
+    	    		.x,
+    	    		pattern = "ESS_BedAvailabilityWithAddlinfo_Hospitals_"
+    	    	)
+    	    ) %>%
+    	    mutate(
+    	    	Date_char = str_sub(Date_char, end = 10)
+    	    ) %>%
+    	    mutate(
+    	    	Date_char = str_replace_all(
+    	    		Date_char,
+    	    		pattern = "\\.",
+    	    		replacement = "-"
+    	    	)
+    	    ) %>%
+    	    mutate(Date = as.POSIXct(Date_char, format = "%m-%d-%Y")) %>%
+    	    select(-Date_char) %>%
+    	    select(Date, everything())
+	    	
+	    } else {
+	    	NULL
+	    }
+			
+		}
+	) 
+
+# We had a data wrangling error, so I wrapped read_excel() in a safely() and 
+#   added an if() statement.
+# miamidadeHospitalised_ls %>% 
+# 	map_lgl(is.null) %>% 
+# 	which()
+# 30
+# dataFiles_char[30]
+# "ESS_BedAvailabilityWithAddlinfo_Hospitals_04.23.2020_1045hrs.xlsx"
+# I inspected this file manually and found the sheet's name was abbreviated
+miamidadeHospitalised_ls[[30]] <- 
+	read_excel(
+    path = paste0(data_dir, dataFiles_char[30]), 
+    sheet = "County", 
+    skip = 1
+  ) %>%
+  filter(County == "MIAMI-DADE") %>%
+  select(contains("COVID")) %>%
+  mutate(Date_char = "2020-04-23") %>%
+  mutate(Date = as.POSIXct(Date_char, format = "%Y-%m-%d")) %>%
+  select(-Date_char) %>%
+  select(Date, everything())
+
+
+miamidadeHospitalised_df <- 
+	miamidadeHospitalised_ls %>% 
+	bind_rows() %>% 
+	mutate(Hospitalised = `COVID IN ICU` + `COVID NON ICU`) %>% 
+  	rename(
+  		ICU = `COVID IN ICU`,
+  		Ventilated = `COVID ON VENT`,
+  		AdmitPrevDay = `COVID + Admits Day Before`,
+  		DischPrevDay = `COVID + Disch Day Before`
+  	) %>% 
+	mutate(DeltaAdmit = AdmitPrevDay - DischPrevDay) %>% 
+  select(
+  	Date, Hospitalised, ICU, Ventilated, AdmitPrevDay, DischPrevDay, DeltaAdmit
+  )
+```
+
+```{r}
+knitr::kable(miamidadeHospitalised_df)
+```
+
+
+```{r pivot_hosp_data}
+mdCOVID_df <- 
+	miamidadeHospitalised_df %>% 
+	pivot_longer(
+		Hospitalised:DeltaAdmit,
+		names_to = "Type",
+		values_to = "Count"
+	)
+```
+
+### Hosptial COVID-19 Census
+Census plot of hospitalisations, patients in ICU, and those in ICU on ventilators.
+```{r graph_hosp_counts, warning = FALSE, message=FALSE}
+ggplot(
+	data = mdCOVID_df %>% 
+		filter(Type != "DischPrevDay") %>% 
+		filter(Type != "AdmitPrevDay") %>% 
+		filter(Type != "DeltaAdmit")
+) +
+	
+	theme_bw() +
+	aes(x = Date, y = Count, group = Type, colour = Type) +
+	scale_color_manual(
+		values = c(
+			"Ventilated" = "#ff0000",
+			"ICU" = "#ff7400",
+			"Hospitalised" = "#ffc100",
+			"AdmitPrevDay" = "black"
+		)
+	) +
+	scale_y_log10() +
+	labs(
+		title = "Counts of Patients Hospitalised with COVID-19 in Miami Dade County",
+		subtitle = "2 April to 29 April, 2020",
+		y = "Counts (Log10 Scale)"
+	) +
+	
+	geom_point(size = 2) +
+	stat_smooth(se = FALSE)
+```
+
+### Net Hospital Admissions
+#### Net New Admissions
+```{r graph_hosp_net_admit, warning = FALSE, message=FALSE}
+ggplot(
+	data = mdCOVID_df %>% 
+		filter(Type == "DeltaAdmit") 
+) +
+	
+	theme_bw() +
+	aes(x = Date, y = Count) +
+	labs(
+		title = "COVID-19: New Hospital Admissions minus Discharges",
+		subtitle = "Miami Dade County: 2 April to 16 May, 2020",
+		y = "Net Admits"
+	) +
+	
+	geom_point(size = 2) +
+	geom_hline(yintercept = 0, colour = "red") +
+	stat_smooth(se = FALSE)
+
+```
+
+#### Admissions vs Dicharges
+```{r graph_hosp_admit_disch, warning = FALSE, message=FALSE}
+ggplot(
+	data = mdCOVID_df %>% 
+		filter(Type %in% c("DischPrevDay", "AdmitPrevDay")) 
+) +
+	
+	theme_bw() +
+	aes(x = Date, y = Count, group = Type, colour = Type) +
+	scale_color_manual(
+		values = c(
+			"AdmitPrevDay" = "#a61414",
+			"DischPrevDay" = "#0C479D"
+		)
+	) +
+	labs(
+		title = "Counts of New Hospital Admissions and Discharges with COVID-19",
+		subtitle = "Miami Dade County: 2 April to 16 May, 2020",
+		y = "Counts"
+	) +
+	
+	geom_point(size = 2) +
+	stat_smooth(se = FALSE)
+
+```
+

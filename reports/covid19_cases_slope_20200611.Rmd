@@ -1,0 +1,391 @@
+---
+title: "South Florida COVID-19 Trajectory"
+author: "Gabriel J. Odom, Roy Williams, Zoran Bursac, and Mary Jo Trepka"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+Analyse Daily COVID-19 Trajectory  
+
+```{r packages, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(cowplot)
+library(kableExtra)
+```
+
+**INTRODUCTION HERE**
+
+
+*******************************************************************************
+
+
+# Testing Data
+```{r read_data, message=FALSE}
+sflCases_df <- read_csv(
+	file = "../../data/FLDH_COVID19_cases_20200607.csv"
+)
+```
+
+```{r}
+knitr::kable(sflCases_df) %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+**EXPLAIN DATA HERE**
+
+```{r fix_dates, message=FALSE}
+sflCases2_df <- 
+	sflCases_df %>% 
+	mutate(Date = as.POSIXct(strptime(Date, format = "%d-%b"))) %>% 
+	mutate(Date = as_date(Date)) 
+
+startEnd_date <- 
+	sflCases2_df %>%
+	slice(1, n()) %>%
+	pull(Date) %>%
+	format("%d %B")
+```
+
+## Positive Counts to Total Counts
+We see the following pattern of positive and negative tests over the past two months (total counts shown on a log scale):
+```{r cases_over_time, message=FALSE}
+nTotal_gg <- 
+	ggplot(
+		data = sflCases2_df %>%
+			mutate(Total = Positive + Negative)
+	) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Total) + 
+	scale_y_log10(
+		breaks = c(2000, 5000, 10000),
+		labels = c("2k", "5k", "10k")
+	) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Counts of Positive and Total COVID-19 Tests in Miami Dade",
+		subtitle = paste(
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+	
+	stat_smooth(method = "loess", colour = "black") +
+  geom_point(colour = "black")
+
+
+nPositive_gg <- 
+	ggplot(data = sflCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Positive) + 
+	# scale_y_log10() +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		caption = "Green represents a positive test result while black is total."
+	) + 
+	
+	stat_smooth(method = "loess", colour = "green") +
+	geom_point(colour = "green") 
+
+
+plot_grid(
+	nTotal_gg, nPositive_gg,
+	nrow = 2,
+	labels = "AUTO"
+) 
+```
+
+**EXPLAIN FIGURES HERE**
+
+
+## Proportion of Positive Cases within Past Two Weeks
+The proportion of positive tests for the past two weeks is:
+```{r recent_data, message=FALSE}
+recent_df <- 
+	sflCases2_df %>% 
+	top_n(15, Date)
+
+# Date Range
+recentStartEnd_date <- 
+	recent_df %>%
+	slice(1, n()) %>%
+	pull(Date) %>%
+	format("%d %B")
+
+# Linear Trend Slope
+recentSlope_num <- recent_df %>% 
+	lm(PropPositive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+```
+
+```{r recent_proportion, message=FALSE}
+ggplot(data = recent_df) +
+	
+	theme_bw() +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive COVID-19 Tests in Miami Dade County",
+		subtitle = paste(
+			recentStartEnd_date[1], "to", recentStartEnd_date[2],
+			"2020; Linear Change =",
+			round(recentSlope_num, 3)
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor.",
+		y = "Proportion of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "black") +
+	stat_smooth(method = "lm", colour = "black", se = FALSE, linetype = "dashed")
+```
+
+**EXPLAIN FIGURE HERE**
+
+
+## Proportion of Positive Cases Overall
+These are the proportions of positive tests for the full data.
+```{r prop_over_time_full, message=FALSE}
+ggplot(data = sflCases2_df) +
+	
+	theme_bw() +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive COVID-19 Tests in Miami Dade County",
+		subtitle = paste(
+			startEnd_date[1], "to", startEnd_date[2], "2020"
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor.",
+		y = "Proportion of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "black") +
+	stat_smooth(method = "lm", colour = "black", se = FALSE, linetype = "dashed")
+```
+
+**EXPLAIN FIGURE HERE**
+
+
+*******************************************************************************
+
+
+# Hospitalisation Data
+<!-- Should we cut this section? -->
+```{r hosptitalised}
+library(readxl)
+data_dir <- "../../data/"
+dataFiles_char <- list.files(path = data_dir, pattern = "ESS_.*hrs")
+# NOTE: on and after 10 June, they removed the "s" from "hrs". I've added it to
+#   the file names manually (as I have to save the files manually from my email
+#   anyway, I can add the "s" to the file name).
+
+read_excel_safely <- safely(read_excel)
+
+miamidadeHospitalised_ls <-
+	map(
+		.x = dataFiles_char,
+		.f = ~{
+
+	    df_ls <- read_excel_safely(
+	      path = paste0(data_dir, .x),
+        sheet = ifelse(
+        	# The tab name changed in June (06)
+        	test = str_detect(.x, pattern = "Hospitals_06"),
+        	yes = "County_Bed_Avail_Report_for_Par", 
+        	no = "County_Bed_Availability_Report_"
+        ),
+        skip = 1
+      )
+
+	    if(!is.null(df_ls$error)){
+        NULL
+	    } else {
+	    	
+	    	df_ls$result %>%
+    	    filter(County == "MIAMI-DADE") %>%
+    	    select(contains("COVID")) %>%
+    	    mutate(
+    	    	Date_char = str_remove(
+    	    		.x,
+    	    		pattern = "ESS_BedAvailabilityWithAddlinfo_Hospitals_"
+    	    	)
+    	    ) %>%
+    	    mutate(
+    	    	Date_char = str_sub(Date_char, end = 10)
+    	    ) %>%
+    	    mutate(
+    	    	Date_char = str_replace_all(
+    	    		Date_char,
+    	    		pattern = "\\.",
+    	    		replacement = "-"
+    	    	)
+    	    ) %>%
+    	    mutate(Date = as.POSIXct(Date_char, format = "%m-%d-%Y")) %>%
+    	    select(-Date_char) %>%
+    	    select(Date, everything())
+	    	
+	    }
+
+		}
+	)
+```
+
+```{r}
+# We had a data wrangling error, so I wrapped read_excel() in a safely() and
+#   added an if() statement.
+# miamidadeHospitalised_ls %>%
+# 	map_lgl(is.null) %>%
+# 	which()
+# 30 83 84 85 86 87
+# dataFiles_char[30]
+# "ESS_BedAvailabilityWithAddlinfo_Hospitals_04.23.2020_1045hrs.xlsx"
+# I inspected this file manually and found the sheet's name was abbreviated
+miamidadeHospitalised_ls[[30]] <-
+	read_excel(
+    path = paste0(data_dir, dataFiles_char[30]),
+    sheet = "County",
+    skip = 1
+  ) %>%
+  filter(County == "MIAMI-DADE") %>%
+  select(contains("COVID")) %>%
+  mutate(Date_char = "2020-04-23") %>%
+  mutate(Date = as.POSIXct(Date_char, format = "%Y-%m-%d")) %>%
+  select(-Date_char) %>%
+  select(Date, everything())
+
+# dataFiles_char[83]
+# After June 1, they changed the sheet name.
+# miamidadeHospitalised_ls[[83]]
+
+
+miamidadeHospitalised_df <-
+	miamidadeHospitalised_ls %>%
+	bind_rows() %>%
+	mutate(Date = as_date(Date)) %>% 
+	mutate(Hospitalised = `COVID IN ICU` + `COVID NON ICU`) %>%
+  rename(
+  	ICU = `COVID IN ICU`,
+  	Ventilated = `COVID ON VENT`,
+  	AdmitPrevDay = `COVID + Admits Day Before`,
+  	DischPrevDay = `COVID + Disch Day Before`
+  ) %>%
+	mutate(DeltaAdmit = AdmitPrevDay - DischPrevDay) %>%
+  select(
+  	Date, Hospitalised, ICU, Ventilated, AdmitPrevDay, DischPrevDay, DeltaAdmit
+  )
+```
+
+
+```{r}
+startEndESS_date <- 
+	miamidadeHospitalised_df %>%
+	slice(1, n()) %>%
+	pull(Date) 
+
+# write_csv(
+# 	miamidadeHospitalised_df,
+# 	path = paste0(
+# 		"../data/ESS_MiamiDade_summary_",
+# 		format(startEndESS_date[2], "%Y%m%d"),
+# 		".csv"
+# 	)
+# )
+
+knitr::kable(miamidadeHospitalised_df) %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+**EXPLAIN DATA HERE**  
+There is a data error for the count ventilated on the 4th of June.
+
+
+```{r pivot_hosp_data}
+mdCOVID_df <-
+	miamidadeHospitalised_df %>%
+	pivot_longer(
+		Hospitalised:DeltaAdmit,
+		names_to = "Type",
+		values_to = "Count"
+	)
+```
+
+## Hosptial COVID-19 Census
+Census plot of hospitalisations, patients in ICU, and those in ICU on ventilators.
+```{r graph_hosp_counts, warning = FALSE, message=FALSE}
+ggplot(
+	data = mdCOVID_df %>%
+		filter(Type != "DischPrevDay") %>%
+		filter(Type != "AdmitPrevDay") %>%
+		filter(Type != "DeltaAdmit") %>% 
+		filter(Date != "2020-06-04")
+	# There is an error in the original data for June 4th. Rather than changing
+	#   the raw data, we are skipping this date
+) +
+
+	theme_bw() +
+	aes(x = Date, y = Count, group = Type, colour = Type) +
+	scale_color_manual(
+		values = c(
+			"Ventilated" = "#ff0000",
+			"ICU" = "#ff7400",
+			"Hospitalised" = "#ffc100",
+			"AdmitPrevDay" = "black"
+		)
+	) +
+	scale_y_log10() +
+	labs(
+		title = "Counts of Patients Hospitalised with COVID-19 in Miami Dade County",
+		subtitle = paste(
+			format(startEndESS_date[1], "%d %B"),
+			"to",
+			format(startEndESS_date[2], "%d %B"),
+			"2020"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+
+	geom_point(size = 2) +
+	stat_smooth(se = FALSE)
+```
+
+**EXPLAIN FIGURE HERE**
+
+
+*******************************************************************************
+
+
+# Conclusion
+
+**CONCLUSION / DISCUSSION HERE**

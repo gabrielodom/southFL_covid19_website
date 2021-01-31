@@ -1,0 +1,286 @@
+---
+title: "Miami Dade County COVID-19 Contact Tracing Data"
+author: "Melinda Paduani, Fernanda Veitzman, Daniel Rhenals"
+date: "7/22/2020"
+output:
+  html_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r packages}
+library(readxl)
+library(tidyverse)
+```
+
+```{r data_wrangling}
+###  1. Clean column names  ###
+
+# Create character vector of 1st row (questions)
+contactHeaders <-
+	read_excel(
+  "../../data/FLDH_contact_tracing_ExtendedQuestions_20200715.xlsx",
+  n_max = 0
+)
+
+# Read Excel file but lost first column which contains questions
+# for rows 1, 21, 22, 23
+contact_df <- read_excel(
+  "../../data/FLDH_contact_tracing_ExtendedQuestions_20200715.xlsx",
+  skip = 1
+)
+
+# Rename Columns 21, 22, 23 so they include questions
+newContact_df <- 
+  rename(
+    contact_df,
+    "If selected Workplace as an exposure what is the individual's occupation?" = "Open-Ended Response...21",
+    "Business Zip Code  (if applicable)" = "Open-Ended Response...22",
+    "What is the relationship to the source? " = "Response"
+  )
+```
+
+```{r recode_entries}
+### 2. Re-Code Entries as Indicators  ###
+# Creating RecodeChar Function to assign NA values 0 and other values 1
+RecodeChar <- function(x, NA_to = 0L, complete_to = 1L) {
+  
+  isNA_lgl <- is.na(x)
+  
+  out <- isNA_lgl
+  out[isNA_lgl] <- NA_to
+  out[!isNA_lgl] <- complete_to
+  
+  out
+}
+
+# Test the Function
+# RecodeChar(c("A", NA))
+
+
+# Apply RecodeChar function to dataframe to make NA values = 0; first 19 columns
+#   are text-entry indicators from a "choose all that apply" question
+exposure_df <- map_dfc(
+  .x = newContact_df[1:19],
+  .f = RecodeChar
+)
+```
+
+```{r wrangle_ZIP_codes}
+zip_char <- newContact_df$`Business Zip Code  (if applicable)`
+# Changing a ZIP code from 333635 to 33635, assuming there was a typo
+zip_char[which(zip_char == "333635")] <- "33635"
+
+# Finds 49 zips instead of 46
+# sum(str_detect(zip_char, "[0-9]{5}"), na.rm = TRUE)
+
+zip2_char <- 
+  zip_char %>% 
+  # First find all the entries that have 5-digit numbers
+  str_subset("[0-9]{5}") %>% 
+  # Then from those entries extract only the 5-digit numbers (this will return
+  #   all matches)
+  str_extract_all("[0-9]{5}", simplify = TRUE) %>% 
+  as.character()
+```
+
+# Introduction
+
+COVID-19 is the infectious disease caused by the most recently discovered coronavirus. This new virus and disease were unknown before the outbreak began in Wuhan, China, in December 2019. COVID-19 is now a pandemic affecting many countries globally. People can catch COVID-19 from others who have the virus. The disease spreads primarily from person to person through small droplets from the nose or mouth, which are expelled when a person with COVID-19 coughs, sneezes, or speaks. People can catch COVID-19 if they breathe in these droplets from a person infected with the virus. These droplets can land on objects and surfaces around the person such as tables, doorknobs and handrails.  People can become infected by touching these objects or surfaces, then touching their eyes, nose or mouth. Currently there is no vaccine or  specific antiviral treatment for COVID-19.
+
+The COVID-19 pandemic has impacted everyone differently, especially in terms of the environmental risks faced day-to-day. Anyone who comes into close contact with someone who has COVID-19 is at increased risk of becoming infected themselves, and of potentially infecting others. Contact tracing can help prevent further transmission of the virus by quickly identifying and informing people who may be infected and contagious, so they can take steps to not infect others according to the Coronavirus Research Center of Harvard University. The data used in the following analyses contain COVID-19 contact tracing data for Miami Dade County and were obtained from the Department of Health.
+
+
+*******************************************************************************
+
+# Cases by exposure location 
+```{r envrisk}
+N <- nrow(exposure_df)
+
+# Pivot to a longer format summarizing number of cases per location
+topExposure_df <-
+  exposure_df %>%
+  gather("Setting", "Cases", everything()) %>% 
+  # Reorder the rows by highest number of cases & select top 10
+  group_by(Setting) %>%
+  summarise(Cases = sum(Cases)) %>% 
+  arrange(desc(Cases)) %>%
+  #slice(1:10)  %>%
+  filter(Cases >= 0.05 * N)
+ 
+# Graph 
+ggplot(topExposure_df) +
+  
+  theme_bw() +
+  theme(legend.position = "none") +
+  aes(x = reorder(Setting, Cases), y = Cases, fill = Cases / N) +
+  labs(
+    x = "Location", y = "Number of Cases",
+    fill = "Proportion of Total Cases",
+    title = "Proportion of Total Cases Per Reported Exposure Location",
+    caption = "This graph only includes relationships with proportion > 0.05."
+  ) +
+  scale_x_discrete(labels = function(x) stringr::str_trunc(x, 20)) +
+  scale_fill_gradient(low = "blue", high = "red") +  
+  
+  geom_col() +
+  geom_text(
+    aes(label = paste0(100 * round(Cases / N, digits = 2), "%")), 
+    color = "white", hjust = 1.1, size = 5
+  ) +
+  
+  coord_flip()
+```
+
+The graph displays the environmental settings where at least 5% of people are getting sick from COVID-19. On the y axis are the locations, the number of cases is on the x axis, and the darker red colors represent higher number of cases compared to the blue. The settings are arranged in descending order of contamination risk. According to previous literature, I expected that the majority of people would not know where they contract COVID-19.
+
+Most people get infected in their own home. A household member contracts the virus in the community and brings it into the house where sustained contact between household members leads to infection. But where are people contracting the infection in the community? Where are the personal dangers? ^1^
+
+The main sources for infection are home, workplace, public transport, social gatherings, and restaurants. This accounts for 90% of all transmission events. In contrast, outbreaks spread from shopping appear to be responsible for a small percentage of traced infections.^2^ The spread of the virus within the household and back out into the community through funerals, birthdays, and church gatherings is believed to be responsible for a broader transmission of COVID-19.^3^
+
+The ZIP codes with the highest workplace traced counts are
+```{r top_ZIPS}
+sort(
+  table(zip2_char, dnn = "Top ZIPs")[table(zip2_char) > 1],
+  decreasing = TRUE
+)
+```
+
+The patterns of exposure are
+```{r}
+# cor(exposure_df)
+# This is too large to parse visually
+
+# Which Rows and Columns of the Correlation Matrix should we keep?
+keepRC_int <- exposure_df %>% 
+  cor() %>% 
+  abs() %>% 
+  `>`(0.2) %>% 
+  which(arr.ind = TRUE) %>%
+  as_tibble(rownames = "Feature") %>%
+  mutate(keep = abs(row - col) > 0) %>%
+  filter(keep) %>% 
+  select(row, col) %>% 
+  unlist() %>% 
+  unique() %>% 
+  sort()
+
+exposure_cor <- cor(exposure_df)[keepRC_int, keepRC_int]
+rownames(exposure_cor) <- stringr::str_trunc(rownames(exposure_cor), 15)
+colnames(exposure_cor) <- stringr::str_trunc(colnames(exposure_cor), 15)
+
+round(exposure_cor, 2)
+```
+
+
+
+## Exposure settings and the relative risk of virus transmission
+
+The below settings are listed and discussed in terms of the relative risk of the chance you could become infected or infect someone else with the virus.^4, 5^ With most of these activities there is relative risk and it depends largely on two things: the environment and what you do in that environment. The thing that's hard to control is what's happening in the environment. Due to the lack of control you have in any environment outside your own home, the exact risk level is largely dependent on individual circumstances, like if your community has high infection rates.^6^
+
+**1. Indoor events:** Spaces with limited air exchange or recycled air and lots of people talking, singing, or yelling are concerning from a transmission standpoint. “The highest risk environments would be indoors with poor air/HVAC systems, with an inability to maintain 6-foot spacing accompanied by loud talking or yelling without everyone wearing a mask,” Dr. Jeff Pothof, the chief quality officer at UW Health in Madison, Wisconsin. Health authorities, like the CDC, encourage you to limit seeing friends indoors as much as possible. It's much easier to spread the virus inside since people are likely gathered closer together, talking and touching surfaces like doors, tables, chairs and more.
+
+**2. Workplaces:** Many workplaces, such as factories and call centers with crowded desks and poor ventilation, are particularly high risk. This has been seen in real time as meatpacking plants have become some of the biggest COVID-19 hot spots nationwide. Businesses should provide training on the proper way to wear masks as well as remove gloves and any other personal protective equipment (PPE) required of the position.
+
+**3. Airplanes:** until there is a vaccine or treatment for the virus as it's among one of the riskiest situations to put yourself in when it comes to exposure to COVID-19. 
+
+**4. Salon/barber shop:** Going to the salon/barber can put you at significant risk for getting infected as you are putting yourself in close proximity (less than six feet) from a relative stranger for more than 15 minutes.
+
+**5. Indoor restaurant/bar:** Going out to restaraunts can be risky for a few different reasons. First, being inside and around others puts you at risk of exposure to people carrying the virus. You are also going to be around people who are largely not wearing masks and covering their faces, since it's pretty hard to keep a mask on while you eat. Finally, being around servers is also a risk since you will be talking to and interacting them at a close proximity pretty frequently. Bars are also considered high-risk when it comes to your chance of contracting the virus. The first problem is that drinking disinhibits you, making it more likely that you or those around you will forget to wear a mask or to social distance. 
+
+**6. Concert halls, churches, theaters:** The Centers for Disease Control and Prevention (CDC) Trusted Source has warned against attending gatherings of 10 or more people as a particular risk for COVID-19 transmission. Officials say that’s because these gatherings offer more opportunities to come in contact with a person who has the virus. These gatherings also are less likely to have proper physical distancing. Rock concerts and religious services are among this group.^4^
+
+**7. Community pools and beaches:** While the likelihood is low of contracting the virus that causes COVID-19 through the water of a pool or ocean, the lack of physical distancing is a concern at community pools and beaches.
+
+**8. Transportation:** Whether that’s subways, buses, trains, or airplanes, is another venue where it’s hard to maintain physical distancing. You’re also likely to have prolonged exposure to other people, making it especially high risk. This raises the probability of passing coronavirus aerial droplets from passenger to passenger by sneezing, coughing, or even talking.” Additionally, passengers should be wary of high-touch surfaces on transportation, including handrails, door pulls, and buttons.
+
+**9. Large outdoor gatherings:** While the outdoors is generally safer than indoors thanks to nature’s natural ventilation, big crowds such as those at a wedding or a large party still pose a serious risk.
+
+**10. Grocery stores:** The most important thing to consider with grocery shopping is how crowded the store is. The more frequently you have to stand near someone whether that's in line or while selecting your food, the more risk you have for being exposed. For a person shopping: the low density, high air volume of the store, along with the restricted time you spend in the store, means that the opportunity to receive an infectious dose is low. But, for the store worker, the extended time they spend in the store provides a greater opportunity to receive the infectious dose and therefore the job becomes riskier.^1^
+
+**11. Daycares & Summer Camps:** An important guiding principle to remember is that the more people children interact with, and the longer that interaction, the higher the risk of COVID-19 spread. While children may be spending time with other people as they return to daycare or school settings, it is important to remember that exposure to additional children and adults outside of daycare or school should be managed to decrease risk. Some 26 million youths normally take part in camps across the U.S. each year according to the American Camp Association. The group estimates 19.5 million young people will miss out on in-person day and overnight camps this year due to the pandemic, with 6.5 million still expected to go. In Texas, dozens of campers and staffers who attended Pine Cove’s Christian camps have tested positive, and several weeks of camp were canceled after clusters of cases were discovered. That includes at least 76 cases in June linked to its overnight camp for teens in Southeast Texas near Columbus.^7^
+
+
+*******************************************************************************
+
+# Relationship to the COVID-19 transmitter
+```{r relationship}
+relation_df <- 
+  newContact_df %>% 
+  select(`What is the relationship to the source? `) %>% 
+  table(dnn = "relationship") %>% 
+  as_tibble() %>% 
+  filter(n >= 0.05 * sum(.$n))
+
+# Bar chart of number of cases by relationship to virus vector
+ggplot(data = relation_df) +
+  
+  theme_bw() +
+  theme(legend.position = "none") +
+  aes(x = reorder(relationship, n), y = n, fill = n / sum(relation_df$n)) +
+  labs(
+    x = "Relationship to Transmitter", 
+    y = "Number of Cases", 
+    fill = "Proportion of Total Cases",
+    title = "Proportion of Cases by Relationship to COVID-19 Transmitter",
+    caption = "This graph only includes relationships with proportion > 0.05"
+  ) +
+  # scale_y_continuous(
+  #   limits = c(0, 120),
+  #   breaks = c(0, 30, 60, 90, 120)
+  # ) +
+  scale_fill_gradient(low = "blue", high = "red") +  
+  
+  geom_col() +
+  geom_text(
+    aes(label = paste0(100 * round(n / sum(relation_df$n), digits = 2), "%")), 
+    hjust = 1.25, 
+    color = "white",
+    size = 5
+  ) +
+  
+  coord_flip()
+
+```
+
+The graph above shows the number of COVID-19 cases grouped by the relationship of each case to the source of infection. The x axis shows the number of cases, the y axis shows the different kinds of relationships between cases and the infected person from whom they believe they caught the virus, and the color represents the number of cases for each relationship category - blue represents a lower proportion and red represents the highest proportions. It was expected that most people would not know their relationship to the source of infection.
+
+Based on the data, most people documented that they caught the virus from a family member, which follows with the first graph that shows that most exposures occured in the household. The second highest category in this graph is that of "no known relationshop". A new survey from the Centers for Disease Control found that 54% of people who tested positive for Covid-19 couldn’t pinpoint how they contracted the virus. The remaining 46% of respondents could recall having close contact with a person — commonly a family member or coworker — who was also diagnosed with Covid-19.^8^ These findings are “very concerning,” and suggest that people are likely contracting Covid-19 from people in their community who are asymptomatic, Dr. Joshua Barocas, infectious disease physician and assistant professor at Boston University School of Medicine, said in an Infectious Disease Society of America briefing Wednesday.^8^
+
+Unexpectedly, the categories with the lowest instances of virus transmission are coworker and friend. The first graph of exposure settings showed that the workplace was the third highest setting for virus exposure, so perhaps the low number of cases who were confident that they caught the virus from a coworker suggests that people may be contracting the virus at work but from people who they don't know - such as clients, customers, associates, etc. Additionally, people who know each other well, e.g. friends, may be successfully socially distancing resulting in the low number of reported cases that were transmitted in that category. 
+
+The moderate number of cases who contracted the disease from their patients is worth investigating further, as it is concerning to see workers in the health field being exposed despite the protocols in place to minimize virus transmission. OSHA has divided job tasks into four risk exposure levels: very high, high, medium, and lower risk, as shown in the occupational risk pyramid, below.^9^ The four exposure risk levels represent the probable distribution of risk. Most American workers will likely fall in the lower exposure risk (caution) or medium exposure risk levels, however, healthcare workers fall in the "very high" exposure risk category. These workers include doctors, nurses, dentists, paramedics, and emergency medical technicians performing aerosol-generating procedures (e.g., intubation, cough induction procedures, bronchoscopies, some dental procedures and exams, or invasive specimen collection) on known or suspected COVID-19 patients.^9^
+
+![](https://urldefense.proofpoint.com/v2/url?u=https-3A__www.osha.gov_SLTC_covid-2D19_pyramid.jpg&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=pB8GiG-H6wfHfgTSnarBesNxk0xg5gxcQpaquLTJG1w&s=Sexm5yIGDxqNsHrm-wX1xyg6Yn77msPnbVrAsZNZdfY&e= )
+
+
+*******************************************************************************
+
+# Conclusion
+
+A trained contact tracer will ask an infected person questions about where they went, and who they interacted with. The contact tracer will then contact those people and inform them that they may have been exposed to the virus.But contact tracing in the U.S. is “not going well,” White House health advisor Dr. Anthony Fauci told CNBC’s Meg Tirrell in an interview June 26. There are about 27,000 or 28,000 contact tracers working in the U.S. currently, but an estimated 100,000 are necessary, Redfield testified last week.^8^
+
+Contact tracing apps that have been successful in other countries “could mitigate some of the challenges” that the U.S. faces. In the absence of effective contact-tracing measures, the best thing we can do is limit the amount of exposure you have to others. Part of a contact tracer’s job is to help you remember who you’ve spent time with and where you’ve been.  Of course, the fewer people you’re exposed to and places you visit, the easier it is to do that.^8^
+
+Large-scale emergency health measures prevented more than 500 million COVID-19 infections in six countries between January and early April 2020, according to a peer-reviewed article published in the journal Nature. The study authors looked at the impact of policies designed to slow the spread of the virus in six countries: the United States, China, South Korea, Italy, Iran, and France. They compared the growth rate of COVID-19 infections in each country before and after the policies — such as travel restrictions; business, school, and restaurant closures; and social distancing — were enacted.^10^
+
+These findings reinforce the importance of continuing to exercise caution and practice health-promoting behaviors as restrictions begin to ease.^10^
+
+
+*******************************************************************************
+
+# References
+
+1. https://urldefense.proofpoint.com/v2/url?u=https-3A__www.erinbromage.com_post_the-2Drisks-2Dknow-2Dthem-2Davoid-2Dthem&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=pB8GiG-H6wfHfgTSnarBesNxk0xg5gxcQpaquLTJG1w&s=DRcRivNnM1VuSx_lAUpWt6DdO9j4-Oz7rKYVXFDGkvA&e= 
+2. Indoor transmission of SARS-CoV-2 Hua QIAN1,*, Te MIAO2,*, Li LIU3 , Xiaohong ZHENG1 , Danting LUO1 , and Yuguo Li2,4,*
+3. CDC Community Transmission of SARS-CoV-2 at Two Family Gatherings — Chicago, Illinois, February–March 2020*
+4. https://urldefense.proofpoint.com/v2/url?u=https-3A__www.healthline.com_health-2Dnews_places-2Dhigher-2Drisk-2Dfor-2Dcovid-2D19-23Large-2Doutdoor-2Dgatherings&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=pB8GiG-H6wfHfgTSnarBesNxk0xg5gxcQpaquLTJG1w&s=BGr5uzIBLLx25491aPg1fgw8atzahnHxnh5yO-5kqWs&e=  
+5. https://urldefense.proofpoint.com/v2/url?u=https-3A__www.healthline.com_health-2Dnews_places-2Dhigher-2Drisk-2Dfor-2Dcovid-2D19-23Large-2Doutdoor-2Dgatherings&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=pB8GiG-H6wfHfgTSnarBesNxk0xg5gxcQpaquLTJG1w&s=BGr5uzIBLLx25491aPg1fgw8atzahnHxnh5yO-5kqWs&e=  
+6. CDC COVID -19 Guidelines
+7. 82 infected at Missouri summer camp as COVID-19 cases surge across US Published July 9 FOX TV Digital Team
+8. https://urldefense.proofpoint.com/v2/url?u=https-3A__www.cnbc.com_2020_07_03_more-2Dthan-2Dhalf-2Dof-2Dpeople-2Dinfected-2Dwith-2Dcovid-2D19-2Ddont-2Dknow-2Dsource-2Dcdc.html&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=pB8GiG-H6wfHfgTSnarBesNxk0xg5gxcQpaquLTJG1w&s=xs07tM4ylalXFQjeBXZmzvHKTBGPAqhFJ38NgtTbobQ&e= 
+9. https://urldefense.proofpoint.com/v2/url?u=https-3A__www.osha.gov_SLTC_covid-2D19_hazardrecognition.html&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=pB8GiG-H6wfHfgTSnarBesNxk0xg5gxcQpaquLTJG1w&s=iPwvN6nA5NVZxKLHbt6J_mnOL0hgs_axDPsqHiGHuFY&e= 
+10. https://urldefense.proofpoint.com/v2/url?u=https-3A__www.health.harvard.edu_diseases-2Dand-2Dconditions_preventing-2Dthe-2Dspread-2Dof-2Dthe-2Dcoronavirus&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=pB8GiG-H6wfHfgTSnarBesNxk0xg5gxcQpaquLTJG1w&s=azqmTT9JEeMZEEPbmiFtjgEKQkARD5CLHVD6BfxTN_s&e= 

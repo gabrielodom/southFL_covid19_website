@@ -1,0 +1,434 @@
+---
+title: "Florida COVID-19 Trajectory"
+author: "Roy Williams, Gabriel J. Odom, Zoran Bursac, and Mary Jo Trepka"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
+# Introduction
+
+Public understanding of science is critical in times of crisis. The following analysis was conducted to examine the trajectory of COVID-19 in Florida. For phased reopening, the White House has set guidelines for local municipalities in their “Opening Up American Again” report. In the report, it is highly suggested that:
+
+1. Local areas show a downward trajectory in the number of positive cases as a percent of total tests over a two-week period, and
+2. Local hospitals have capacity to handle all patients without crisis care.
+
+The analysis begins by looking at the number of new positive cases each day and the number of total tests performed each day. The figures are presented together because **as there is more testing, there are likely to be more positive test results**. Therefore, the proportion of positive cases is also calculated. Given either a flat or increasing number of tests performed, **the proportion of positive cases is the key metric to be used when looking at epidemic trajectory**. It is recommended that this proportion <ins>not exceed</ins> 5%.
+
+**Note: 5-day moving averages are used to smooth data.**
+
+**Note: On 8/31 there was a one-time historical data submission of a large number of cases from a large laboratory. The number of cases for 8/31 in the current report excludes this historical data submission.**
+
+**Note: a data dump of previously reported results prevented the reporting system from normal processing of lab results on October 9th, causing an inaccurate representation of data for October 9th and October 10th.**
+
+
+*******************************************************************************
+
+
+# COVID-19 Test Counts and Proportions
+```{r packages}
+# Load packages
+library(tidyverse)
+library(lubridate)
+library(cowplot)
+library(kableExtra)
+library(readxl)
+```
+
+```{r rolling_mean_function}
+RollUp <- function(.x, .w, .f = mean, ...){
+	# Find "Rolling" values of a specified function
+	# Inputs:
+	#   .x: a vector (usually numeric) over which to "roll" the function .f
+	#   .w: the window size
+	#   .f: the function to "roll" over the values of .x
+	#   ...: additional arguments to .f
+	# Output: a vector the length of .x with the first (.w - 1) values set to NA
+	#   and the remaining values equal to .f evaluated over the previous window.
+	# Details: for a five-day moving average, set .w = 5. Then the moving average
+	#   of .x at index 5 will be mean(.x[1], .x[2], ..., .x[5]).
+	# Examples:
+	#   # Rolling mean of first five integers
+	#   RollUp(.x = 1:10, .w = 5)
+	
+	n <- length(.x)
+	out <- rep(NA, times = n)
+	class(out) <- class(.x)
+	
+	for(i in .w:n) {
+		out[i] <- .f(.x[(i - .w + 1):i])
+	}
+	
+	out
+	
+}
+```
+
+```{r read_data}
+# Import data
+flCases_df <- read_csv(
+	file = "../../data/cases/FLDH_COVID19_cases_20210103.csv"
+) %>% 
+	# Move proportion to last column
+	rename(PropPositive = Percent) %>% 
+	select(-PropPositive, PropPositive)
+```
+
+
+```{r roll_up_testing_data}
+# Rolling Means
+flCases2_df <- 
+	flCases_df %>% 
+	mutate(Positive = RollUp(.x = Positive, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Negative = RollUp(.x = Negative, .w = 5, na.rm = TRUE)) %>% 
+	mutate(Total = Negative + Positive) %>%
+	mutate(PropPositive = 100 * Positive / Total)
+```
+
+## Full Data
+This is a table of the most recent data we have available. We include data sources at the end of the document.
+```{r}
+knitr::kable(flCases_df) %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+</br>
+
+The data above show for each day since June 8th: the number of positive COVID-19 tests, the number of negative COVID-19 tests, and the proportion of positive COVID-19 tests to total COVID-19 tests.
+
+```{r fix_dates}
+startEnd_date <- 
+	flCases2_df %>%
+	slice(1, n()) %>%
+	pull(Date) %>%
+	format("%d %B %Y")
+```
+
+```{r}
+recent_df <- 
+	flCases2_df %>% 
+	top_n(15, Date)
+
+# Date Range
+recentStartEnd_date <- 
+	recent_df %>%
+	slice(1, n()) %>%
+	pull(Date) %>%
+	format("%d %B %Y")
+
+# Recent Linear Trend Slope for Total Counts
+recentTCountSlope_num <-
+	recent_df %>% 
+	lm(Positive + Negative ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+recentTCountAdjective <- ifelse(
+	recentTCountSlope_num > 0, "increase", "decrease"
+)
+recentTCountAdjective2 <- ifelse(
+	recentTCountSlope_num > 0, "additional", "fewer"
+)
+
+# Recent Linear Trend Slope for Positive Counts
+recentPCountSlope_num <-
+	recent_df %>% 
+	lm(Positive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+recentPCountAdjective <- ifelse(
+	recentPCountSlope_num > 0, "increase", "decrease"
+)
+recentPCountAdjective2 <- ifelse(
+	recentPCountSlope_num > 0, "additional", "fewer"
+)
+
+
+# Recent Linear Trend Slope for Proportion
+recentPropSlope_num <-
+	recent_df %>% 
+	lm(PropPositive ~ Date, data = .) %>% 
+	coefficients() %>% 
+	pluck(2)
+
+# Slope Adjectives:
+propMagnitude <- case_when(
+	abs(recentPropSlope_num) < 0.1 ~ "slight",
+	abs(recentPropSlope_num) < 0.5 ~ "",
+	abs(recentPropSlope_num) > 0.5 ~ "significant"
+)
+propAdjective <- ifelse(recentPropSlope_num > 0, "increase", "decrease")
+```
+
+
+## Total COVID-19 Tests by Day
+We see the following pattern for the count of total tests over the past two months (shown on a log scale):
+```{r tests_over_time}
+nTotal_gg <- 
+	ggplot(data = flCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Total) + 
+	scale_y_log10(
+		breaks = c(20000, 50000, 100000, 150000),
+		labels = c("20k", "50k", "100k", "150k")
+	) +
+	scale_x_date(
+		date_breaks = "1 month",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b-%y")
+	) +
+	labs(
+		title = "Number of COVID-19 Tests by Day; Florida",
+		subtitle = paste0(
+			startEnd_date[1], " to ", startEnd_date[2],
+			"; Change in Two-Week Trajectory = ",
+			round(recentTCountSlope_num, 1),
+			" Tests"
+		),
+		y = "Counts (Log10 Scale)"
+	) +
+	
+	stat_smooth(method = "loess", colour = "black") +
+  geom_point(colour = "black")
+
+nTotal_gg
+```
+
+The average number of COVID-19 tests performed each day increased from under 35,000 in early June until plateauing around 100,000 in July. In August, this number dropped to approximately 50,000 test performed per day, before increasing again in the month of November to over 100,000 tests per day.
+
+Over the past two weeks there was `r recentTCountAdjective` of `r round(abs(recentTCountSlope_num), 1)` `r recentTCountAdjective2` tests performed each day.
+
+## Positive COVID-19 Tests by Day
+We see the following pattern for the count of positive tests over the past two months:
+```{r cases_over_time}
+nPositive_gg <- 
+	ggplot(data = flCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Positive) + 
+	# scale_y_continuous(limits = c(0, 1000)) +
+  # scale_y_log10() +
+	scale_x_date(
+		date_breaks = "1 month",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b-%y")
+	) +
+	labs(
+		title = "Number of Positive COVID-19 Tests Results by Day",
+		subtitle = paste(
+			"Florida;",
+			startEnd_date[1], "to", startEnd_date[2]
+		),
+		y = "Count Positive"
+	) + 
+	
+	stat_smooth(method = "gam", colour = "green") +
+	geom_point(colour = "green") 
+
+nPositive_gg
+```
+
+
+Over the past two weeks, there has been an average `r recentPCountAdjective` of `r round(recentPCountSlope_num, 0)` `r recentPCountAdjective2` cases reported each day.
+
+### Positive COVID-19 Tests within the Past Two Weeks
+
+In addition to the overall trend of positive COVID-19 tests shown above, we also show an enhanced view of the last two weeks, depicting a decrease in positive cases during this period of time.
+```{r cases_over_two_weeks}
+nPositiveRecent_gg <- 
+	ggplot(data = recent_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Positive) + 
+	# scale_y_continuous(limits = c(0, 1000)) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Number of Positive Test Results within the Past Two Weeks",
+		subtitle = paste0(
+			"Florida; ",
+			recentStartEnd_date[1], " to ", recentStartEnd_date[2],
+			"; Linear Change = ",
+			round(recentPCountSlope_num, 1)
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor.",
+		y = "Count of Positive Cases"
+	) +
+	
+	stat_smooth(method = "loess", colour = "green") +
+	geom_point(colour = "green")
+
+nPositiveRecent_gg
+```
+
+
+## Proportion of Positive Cases within Past Two Weeks
+```{r recent_proportion}
+ggplot(data = recent_df) +
+	
+	theme_bw() +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 week",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	labs(
+		title = "Proportion of Positive Test Results within the Past Two Weeks",
+		subtitle = paste0(
+			"Florida; ",
+			recentStartEnd_date[1], " to ", recentStartEnd_date[2],
+			"; Linear Change = ",
+			round(recentPropSlope_num, 3)
+		),
+		caption = "Solid line: LOESS Predictor; Dashed line: Linear Predictor.",
+		y = "Proportion (%) of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "loess", colour = "black") +
+	stat_smooth(method = "lm", colour = "black", se = FALSE, linetype = "dashed")
+```
+
+During the 14-day period from `r recentStartEnd_date[1]` to `r recentStartEnd_date[2]`, there was a <b> `r propMagnitude` `r propAdjective` </b> in the proportion of positive COVID-19 cases reported in Florida. During this time, there was an average `r propAdjective` of `r round(recentPropSlope_num, 3)`% per day for new positive cases.
+
+
+
+
+## Proportion of Positive COVID-19 Tests by Day
+These are the proportions of positive COVID-19 tests for the since the second week of June:
+```{r md_prop_over_time_full}
+ggplot(data = flCases2_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = PropPositive) +
+	scale_x_date(
+		date_breaks = "1 month",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b-%y")
+	) +
+	labs(
+		title = "Overall Proportion of Positive Test Results Out of All Tests",
+		subtitle = paste(
+			"Florida;",
+			startEnd_date[1], "to", startEnd_date[2]
+		),
+		caption = "Solid line: GAM Predictor; Red Triangle: Phase 1 Reopening",
+		y = "Proportion (%) of Positive Cases"
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "gam", colour = "orange") 
+```
+
+Overall, the proportion of positive test results out of all tests **increased significantly from approximately 5% in early June to a peak of 18% on July 8th. From July 8th to October, the positivity rate gradually declined. Afterwards, there has been an increasing trend in positivity observed.** This number is function of test availability and the population being tested. Given a flat or increasing number of tests performed, an increase in the proportion of positive tests obtained points to evidence of increased COVID-19 community spread in Florida.
+
+*******************************************************************************
+
+# COVID-19 Deaths by Day
+```{r}
+# Import Data
+deathsbyday_df <- read_csv(
+	"../../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20201227.csv"
+) %>% 
+	filter(Date <= "2020-11-25")
+
+startEndDeaths_date <- 
+	deathsbyday_df %>%
+	arrange(Date) %>% 
+	slice(1, n()) %>%
+	pull(Date) 
+
+certDelay_num <- as.numeric(
+	Sys.Date() - startEndDeaths_date[2],
+	units = "days"
+)
+```
+
+```{r}
+deathsByDay2_df <- 
+	deathsbyday_df %>% 
+	group_by(Date) %>% 
+	summarise(Count = sum(Count))
+```
+
+
+```{r}
+knitr::kable(deathsByDay2_df) %>% 
+	kable_styling() %>%
+  scroll_box(height = "500px")
+```
+
+
+```{r}
+# Rolling Means
+deathsbydayMA_df <- 
+	deathsByDay2_df %>% 
+	mutate(Count = RollUp(.x = Count, .w = 5, na.rm = TRUE))
+```
+
+```{r}
+###  Plot State Deaths over Time  ###
+ggplot(deathsbydayMA_df) +
+	
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Count) +
+	scale_x_date(
+		date_breaks = "1 month",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b-%y")
+	) +
+	scale_y_continuous(limits = c(0, 300)) +
+	labs(
+		title = "COVID-19 Deaths per Day",
+		subtitle = paste(
+			"Florida;",
+			startEndDeaths_date[1], "to", startEndDeaths_date[2]
+			
+		),
+		caption = "Solid line: GAM Predictor."
+	) +
+	
+	geom_point() +
+	stat_smooth(method = "gam", colour = "red") 
+```
+
+
+The reported deaths per day peaked in middle of July for the State of Florida. Subsequently, there was a decline in the number of deaths reported per day until December. Currently, there are more than 50 newly reported deaths per day on average. 
+
+**Note: Due to delays in classifying the cause of death and thus of reporting deaths due to COVID-19, the most recent data will undercount the number of deaths. Specifically, 25% of new deaths added this week were from on or before `r format(startEndDeaths_date[2], "%B %d")`. This date indicates a point where 75% of our data is considered complete. For this reason, approximately the last `r round(certDelay_num / 7, 1)` weeks were excluded from this analysis of deaths.**
+	
+	
+*******************************************************************************
+# Conclusion
+
+During the past two weeks, there has been a <b>`r recentTCountAdjective`</b> of `r round(recentTCountSlope_num, 1)` `r recentTCountAdjective2` tests performed each day. There was an <b>`r recentPCountAdjective`</b> of `r round(recentPCountSlope_num, 0)` positive COVID-19 tests each day. There was a <b> `r propMagnitude` `r propAdjective` </b> in the proportion of positive COVID-19 tests of `r round(recentPropSlope_num, 3)`% each day. Finally, the number of deaths reported per day has begun to increase. There is now approximately a `r round(certDelay_num / 7, 1)` week delay in the certification of deaths. Approximately 25% of new deaths added this week were from on or before `r format(startEndDeaths_date[2], "%B %d")`.
+
+*******************************************************************************
+
+
+# Data Sources
+Data sources are as follows:
+
+- **COVID-19 Test Results**: The number of positive and negative COVID-19 test results come from the Florida Department of Health: https://urldefense.proofpoint.com/v2/url?u=https-3A__floridahealthcovid19.gov&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=QUKx3rCiMFnb5C5R588Kv_iCCiG7ii4YhxNZ61jfdrE&s=gADAIt0tyBXllksGsjeDHF-MEXNEXzo8hm1AX8DmV40&e= .
+- **COVID-19 Hospital Census**: The hospitalization data is disseminated by Florida’s Agency for Health Care Administration: https://urldefense.proofpoint.com/v2/url?u=https-3A__ahca.myflorida.com&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=QUKx3rCiMFnb5C5R588Kv_iCCiG7ii4YhxNZ61jfdrE&s=6mSZjl-iVpEonWenx8CH16RY3Vlgg9DK7R6YTvD1O7Y&e= .
+- **COVID-19 Death Linelist**: This list is created and disseminated by Florida's Department of Health. Deaths are medical examiner confirmed.
+https://urldefense.proofpoint.com/v2/url?u=https-3A__floridahealthcovid19.gov&d=DwIGaQ&c=lhMMI368wojMYNABHh1gQQ&r=ZzssdlRrRS7QXnhuTSa63A&m=QUKx3rCiMFnb5C5R588Kv_iCCiG7ii4YhxNZ61jfdrE&s=gADAIt0tyBXllksGsjeDHF-MEXNEXzo8hm1AX8DmV40&e= .
+

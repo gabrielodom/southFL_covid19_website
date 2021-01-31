@@ -1,0 +1,47 @@
+---
+title: "Miami-Dade COVID-19 Deaths over Time"
+author: "Gabriel Odom and Roy Williams"
+date: "7/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+# COVID-19 Deaths by Day in Miami-Dade County
+```{r}
+# Setup
+library(tidyverse)
+library(readxl)
+library(lubridate)
+
+deaths_df <- read_csv("../../data/miami_deaths_20200707.csv")
+```
+
+```{r}
+# Wrangle data
+deathsbyday_df <- 
+	deaths_df %>% 
+	# Group deaths by day and count how many
+	group_by(`Date case counted`) %>% 
+	add_tally() %>% 
+	# Remove duplicate rows
+	select(`Date case counted`, n) %>% 
+	distinct() %>% 
+	# Clean up the dates
+	mutate(Date_POSIX = mdy(`Date case counted`)) %>% 
+	mutate(Date = as_date(Date_POSIX)) %>% 
+	ungroup() %>% 
+	select(Date, n)
+```
+
+```{r}
+# Plot
+ggplot(deathsbyday_df) +
+	aes(x = Date, y = n) +
+	ylab("Count of COVID-19 Deaths per Day") +
+	geom_point() +
+	stat_smooth()
+```
+
