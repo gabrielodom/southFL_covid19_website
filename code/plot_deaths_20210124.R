@@ -65,7 +65,7 @@ library(readxl)
 #   so we switched to the ArcGIS slug for 2020-09-08's data.
 deaths_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210124.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210221.csv"
 	) %>% 
 	# NOTE 2021-01-14: WHAT THE HELL IS "Recent"??? There are 243 "Recent" rows
 	#   for the 16th data, but only 95 for the 10th. This must be a new designation
@@ -133,14 +133,14 @@ deaths2_df %>%
 	summarise(
 		Proportion = n() / nrow(deaths2_df %>% filter(County == "Palm Beach"))
 	)
-# DATE: 2021-01-24
-# For Miami-Dade, 81.8% (3845 / 4703) of the deaths are the 65 and up group.
-# For Broward, 75.6% (1526 / 2018) of the deaths are the 65 and up group.**
-# For Palm Beach, 84.6% (1770 / 2093) of the deaths are the 65 and up group.
-fisher.test(
-	matrix(c(20918, 25163, 1526, 2018), nrow = 2, byrow = FALSE),
-	alternative = "two.sided"
-)
+# # DATE: 2021-01-24
+# # For Miami-Dade, 81.8% (3845 / 4703) of the deaths are the 65 and up group.
+# # For Broward, 75.6% (1526 / 2018) of the deaths are the 65 and up group.**
+# # For Palm Beach, 84.6% (1770 / 2093) of the deaths are the 65 and up group.
+# fisher.test(
+# 	matrix(c(20918, 25163, 1526, 2018), nrow = 2, byrow = FALSE),
+# 	alternative = "two.sided"
+# )
 
 
 ###  Counts by Day  ###
@@ -162,7 +162,7 @@ deathsbyday_df <-
 ###  Save  ###
 write_csv(
 	x = deathsbyday_df,
-	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210124.csv"
+	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210221.csv"
 )
 
 
@@ -186,7 +186,7 @@ write_csv(
 
 deathsOld_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210116.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210214.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdiction == "FL resident") %>% 
@@ -210,7 +210,7 @@ deathsOld_df <-
 
 deathsNew_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210124.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210221.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdiction == "FL resident") %>% 
@@ -290,6 +290,14 @@ nrow(deathsNew_df) - nrow(deathsOld_df)
 #   in the anti-join. (NOTE: this was a 6-day window; that's 1245 deaths/week.)
 # Between 16 January and 24 January, we added 1160 new deaths, but 1173 show up
 #   in the anti-join. (NOTE: this was an 8-day window; that's 1026 deaths/week.)
+# Between 24 January and 31 January, we added 1196 new deaths, but 1247 show up
+#   in the anti-join. 
+# Between 31 January and 7 February, we added 1239 new deaths, but 1281 show up
+#   in the anti-join. 
+# Between 7 February and 14 February, we added 1180 new deaths, but 1217 show up
+#   in the anti-join. 
+# Between 14 February and 21 February, we added 1034 new deaths, but 1057 show up
+#   in the anti-join. 
 
 
 
@@ -594,11 +602,84 @@ newlyAddedDeaths_df %>%
 # 6-week delay for 75th percentile; 4-week delay for 50th percentile
 
 
+###  Reporting Certification Delay 2021-01-31  ###
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-03-27" "2020-12-16" "2020-12-28" "2020-12-14" "2021-01-05" "2021-01-28"
+# 7-week delay for 75th percentile; 5-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-03-27" "2020-12-20" "2021-01-02" "2020-12-20" "2021-01-10" "2021-01-29"
+# 6-week delay for 75th percentile; 4-week delay for 50th percentile
+
+
+###  Reporting Certification Delay 2021-02-07  ###
+# UPDATE: When we met with DoH (Sarah Suarez and Dr. Villalta) in early December,
+#   we had a grave miscommunication--which I'm not sure how that was possible, 
+#   as we were literally speaking on video. Regardless, NIETHER the "Case_" nor
+#   the "EventDate" column in the linelist are updated to show the date of death.
+#   This means that Case_ (renamed to "CaseDate") *still* measures when the 
+#   subjects became ill. Therefore, this delay is the time for the virus to kill
+#   the patient PLUS the certification delay. We emailed back to Sarah to find
+#   out if there is any way to count the number of deaths per day.
+#      To be completely honest, I thought it was very strange that the daily
+#   "deaths" counts would happen at the same time (or even 1-2 days prior) to
+#   the case counts. I brushed off my own worries because we had confirmed with
+#   DoH that "Case_" was updated to date of death. I questioned myself, and I
+#   shouldn't have ignored my instincts. 
+#      All in all, here is what this means: the CDC has previously reported that
+#   it takes COVID-19 about 15 days to kill people. If everyone that would die
+#   died 15 days after infection, this would mean that 1/3rd of the delay is
+#   the time it takes for the virus to kill the subjects, and the remaining time
+#   is the certification delay. However, because we (on 7 February) have deaths
+#   recorded in MDC on 3 February and on 5 February for the state, we know that
+#   the certification delay is not fixed. Also, because of basic medicine, we
+#   know that the time the SARS-Cov-2 virus takes to kill people will vary as
+#   well. If we can estimate the distribution of the time it takes people to die
+#   of COVID-19, then we can subtract the distribution of these "delays" to 
+#   estimate the distribution of the certification delay.
+
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-05-15" "2020-12-15" "2020-12-31" "2020-12-08" "2021-01-11" "2021-02-03"
+# 8-week delay for 75th percentile; 5-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-04" "2020-12-24" "2021-01-06" "2020-12-25" "2021-01-15" "2021-02-05"
+# 6-week delay for 75th percentile; 5-week delay for 50th percentile
+
+
+###  Reporting Certification Delay 2021-02-14  ###
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-17" "2020-12-22" "2021-01-09" "2020-12-21" "2021-01-19" "2021-02-12"
+# 8-week delay for 75th percentile; 5-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-16" "2020-12-31" "2021-01-12" "2020-12-31" "2021-01-21" "2021-02-12" 
+# 6-week delay for 75th percentile; 5-week delay for 50th percentile
+
+
+###  Reporting Certification Delay 2021-02-21  ###
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-06-29" "2021-01-01" "2021-01-14" "2021-01-06" "2021-01-25" "2021-02-15"
+# 7-week delay for 75th percentile; 5-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-16" "2021-01-06" "2021-01-18" "2021-01-11" "2021-01-28" "2021-02-19"
+# 7-week delay for 75th percentile; 5-week delay for 50th percentile
+
+
 
 ######  Plots of Deaths  ######################################################
 ###  Import Cleaned Deaths Data  ###
 deathsbyday_df <- read_csv(
-	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210124.csv"
+	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210221.csv"
 )
 
 # deathsbyday_df %>% 
@@ -615,7 +696,7 @@ ggplot(
 		filter(County == whichCounty) %>% # %in% c("Escambia", "Santa Rosa")
 		# Only 25% of newly added deaths are on or before this date. See comments
 		#   on newly-added deaths in previous section
-		filter(Date <= "2020-12-13")
+		filter(Date <= "2021-01-01")
 ) +
 	
 	theme_bw() +
@@ -623,7 +704,7 @@ ggplot(
 	aes(x = Date, y = Count) +
 	# scale_y_log10() +
 	scale_x_date(
-		date_breaks = "1 week",
+		date_breaks = "1 month",
 		date_minor_breaks = "1 day",
 		labels = scales::date_format("%d-%b")
 	) +
@@ -641,14 +722,14 @@ ggplot(
 		group_by(Date) %>% 
 		summarise(Count = sum(Count)) %>% 
 	  # See comments on newly-added deaths in previous section
-	  filter(Date <= "2020-12-16")
+	  filter(Date <= "2021-01-06")
 ) +
 	
 	theme_bw() +
 	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
 	aes(x = Date, y = Count) +
 	scale_x_date(
-		date_breaks = "1 week",
+		date_breaks = "1 month",
 		date_minor_breaks = "1 day",
 		labels = scales::date_format("%d-%b")
 	) +

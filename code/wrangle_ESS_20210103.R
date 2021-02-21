@@ -106,6 +106,7 @@ map_lgl(southFloridaHospitalised_ls, is.null)
 
 
 
+
 ######  Wrangle Specific Data Files  ##########################################
 
 ###  April 23  ###
@@ -453,17 +454,31 @@ southFloridaHospitalised_ls[244:278] <-
 
 
 ###  January 10-11th  ###
-southFloridaHospitalised_ls[281:290] <-
+southFloridaHospitalised_ls[281:298] <-
 	map2(
-		.x = dataFiles_char[281:290],
+		.x = dataFiles_char[281:298],
 		.y = c(
 			"2021-01-14", "2021-01-19", "2021-01-20", "2021-01-21", "2021-01-22",
-			"2021-01-23", "2021-01-24", "2021-01-25", "2021-01-26", "2021-01-28"
+			"2021-01-23", "2021-01-24", "2021-01-25", "2021-01-26", "2021-01-28",
+			"2021-01-29", "2021-01-30", "2021-01-31", "2021-02-02", "2021-02-03",
+			"2021-02-04", "2021-02-05", "2021-02-06"
 		),
 		.f = ReadHospitalLevelData2,
 		county_char = whichCounties_char
 	)
 
+
+###  February 7th, 9th  ###
+southFloridaHospitalised_ls[c(300, 302:310)] <-
+	map2(
+		.x = dataFiles_char[c(300, 302:310)],
+		.y = c(
+			"2021-02-08", "2021-02-10", "2021-02-11", "2021-02-12", "2021-02-13",
+			"2021-02-14", "2021-02-15", "2021-02-16", "2021-02-17", "2021-02-18"
+		),
+		.f = ReadHospitalLevelData2,
+		county_char = whichCounties_char
+	)
 
 
 ######  Wrangle  ##############################################################
