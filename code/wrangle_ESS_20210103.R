@@ -469,12 +469,14 @@ southFloridaHospitalised_ls[281:298] <-
 
 
 ###  February 7th, 9th  ###
-southFloridaHospitalised_ls[c(300, 302:310)] <-
+southFloridaHospitalised_ls[c(300, 302:318)] <-
 	map2(
-		.x = dataFiles_char[c(300, 302:310)],
+		.x = dataFiles_char[c(300, 302:318)],
 		.y = c(
 			"2021-02-08", "2021-02-10", "2021-02-11", "2021-02-12", "2021-02-13",
-			"2021-02-14", "2021-02-15", "2021-02-16", "2021-02-17", "2021-02-18"
+			"2021-02-14", "2021-02-15", "2021-02-16", "2021-02-17", "2021-02-18",
+			"2021-02-19", "2021-02-20", "2021-02-21", "2021-02-22", "2021-02-23",
+			"2021-02-24", "2021-02-25", "2021-02-26"
 		),
 		.f = ReadHospitalLevelData2,
 		county_char = whichCounties_char
@@ -501,25 +503,6 @@ southFloridaHospitalised_df <-
 		Date, County, TotalBeds, AvailableBeds, HospitalCapacity, Hospitalized, ICU,
 		Ventilated, AdmitPrevDay, DischPrevDay, DeltaAdmit
 	)
-
-
-
-######  Incorporate DEM Data (MDC Only)  ######################################
-# # We have data for MDC only through the Miami Beach DEM. In emergencies, when
-# #   we do not have access to AHCA data, we can at least report on what is
-# #   happening in Miami-Dade County.
-# # Update: the DEM report is missing about 20 people hospitalized in MDC. I'll
-# #   bet that they aren't using the AHCA definition (all non-VA beds).
-# 
-# dem_DF <- tibble(
-# 	Date = as_date(c("2020-01-12", "2020-01-13")),
-# 	County = c("MIAMI-DADE", "MIAMI-DADE"),
-# 	Hospitalized = c(1208L, 1180L) + 20L
-# )
-# 
-# # I'm not comfortable with this. I'd rather just ignore the DEM data for now,
-# #   than add data using different definitions while assuming it's the same.
-
 	  
 
 
