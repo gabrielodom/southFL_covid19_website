@@ -65,7 +65,7 @@ library(readxl)
 #   so we switched to the ArcGIS slug for 2020-09-08's data.
 deaths_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210228.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210307.csv"
 	) %>% 
 	# NOTE 2021-01-14: WHAT THE HELL IS "Recent"??? There are 243 "Recent" rows
 	#   for the 16th data, but only 95 for the 10th. This must be a new designation
@@ -162,7 +162,7 @@ deathsbyday_df <-
 ###  Save  ###
 write_csv(
 	x = deathsbyday_df,
-	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210228.csv"
+	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210307.csv"
 )
 
 
@@ -186,7 +186,7 @@ write_csv(
 
 deathsOld_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210221.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210228.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdiction == "FL resident") %>% 
@@ -210,7 +210,7 @@ deathsOld_df <-
 
 deathsNew_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210228.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210307.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdiction == "FL resident") %>% 
@@ -299,6 +299,8 @@ nrow(deathsNew_df) - nrow(deathsOld_df)
 # Between 14 February and 21 February, we added 1034 new deaths, but 1057 show up
 #   in the anti-join. 
 # Between 21 February and 28 February, we added 1039 new deaths, but 1077 show up
+#   in the anti-join. 
+# Between 28 February and 7 March, we added 768 new deaths, but 770 show up
 #   in the anti-join. 
 
 
@@ -700,11 +702,23 @@ newlyAddedDeaths_df %>%
 # 8-week delay for 75th percentile; 6-week delay for 50th percentile
 
 
+###  Reporting Certification Delay 2021-03-07  ###
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-02" "2021-01-13" "2021-01-30" "2021-01-21" "2021-02-10" "2021-03-02" 
+# 8-week delay for 75th percentile; 5-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-02" "2021-01-14" "2021-01-29" "2021-01-21" "2021-02-09" "2021-03-05" 
+# 7-week delay for 75th percentile; 5-week delay for 50th percentile
+
+
 
 ######  Plots of Deaths  ######################################################
 ###  Import Cleaned Deaths Data  ###
 deathsbyday_df <- read_csv(
-	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210228.csv"
+	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210307.csv"
 )
 
 # deathsbyday_df %>% 
@@ -721,7 +735,7 @@ ggplot(
 		filter(County == whichCounty) %>% # %in% c("Escambia", "Santa Rosa")
 		# Only 25% of newly added deaths are on or before this date. See comments
 		#   on newly-added deaths in previous section
-		filter(Date <= "2020-12-26")
+		filter(Date <= "2021-01-13")
 ) +
 	
 	theme_bw() +
@@ -747,7 +761,7 @@ ggplot(
 		group_by(Date) %>% 
 		summarise(Count = sum(Count)) %>% 
 	  # See comments on newly-added deaths in previous section
-	  filter(Date <= "2021-01-05")
+	  filter(Date <= "2021-01-14")
 ) +
 	
 	theme_bw() +
