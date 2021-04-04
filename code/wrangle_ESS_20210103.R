@@ -487,7 +487,20 @@ southFloridaHospitalised_ls[c(300, 302:333)] <-
 
 
 ###  March 15th, 16th  ###
-
+southFloridaHospitalised_ls[336:351] <-
+	map2(
+		.x = dataFiles_char[336:351],
+		.y = c(
+			"2021-03-17", "2021-03-18", "2021-03-19", "2021-03-20", "2021-03-21",
+			# For some reason, the sheet name on the 25th is different, but the data
+			# is the same. Bizarre.
+			"2021-03-22", "2021-03-23", "2021-03-25", "2021-03-26", "2021-03-28",
+			"2021-03-29", "2021-03-30", "2021-03-31", "2021-04-01", "2021-04-02",
+			"2021-04-03"
+		),
+		.f = ReadHospitalLevelData2,
+		county_char = whichCounties_char
+	)
 
 
 ######  Wrangle  ##############################################################
