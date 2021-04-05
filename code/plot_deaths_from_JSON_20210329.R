@@ -69,12 +69,17 @@ deaths_df <-
 	select(Date, Deaths) %>% 
 	arrange(Date)
 
-tibble(
-	Date = seq(as.Date('2020-03-05'), Sys.Date(), by = "day")
-) %>% 
+deathsClean_df <- 
+	tibble(
+		Date = seq(as.Date('2020-03-05'), Sys.Date(), by = "day")
+	) %>% 
 	left_join(deaths_df) %>% 
-	replace_na(list(Deaths = 0)) %>% 
-	write_csv(file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210404.csv")
+	replace_na(list(Deaths = 0)) 
+
+write_csv(
+	deathsClean_df,
+	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210404.csv"
+)
 
 
 
@@ -272,3 +277,21 @@ ggplot(
 
 
 
+######  Step 6: Plot Deaths with Certainty  ###################################
+# Now that we are confident that the data from 11 March and before is "stable" 
+#   (as of 4 April anyway), we can build a plot of deaths over time.
+deathsClean_df <- read_csv(
+	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210404.csv"
+) %>% 
+	filter(Date < "2021-03-11")
+
+ggplot(data = deathsClean_df) +
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = Deaths) +
+	scale_x_date(
+		date_breaks = "1 month",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	geom_point()
