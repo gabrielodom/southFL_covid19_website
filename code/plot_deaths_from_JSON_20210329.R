@@ -8,6 +8,12 @@ library(lubridate)
 library(jsonlite)
 library(tidyverse)
 
+ConvertJsonDate <- function(date_int) {
+	# Function source: https://stackoverflow.com/questions/54450815/how-to-read-json-date-in-r
+	# Checked against: https://www.freeformatter.com/epoch-timestamp-to-date-converter.html
+	as.POSIXct(date_int / 1000, origin = "1970-01-01", tz = "GMT")
+}
+
 ######  Introduction  #########################################################
 # Last fall, when I was really digging in to the daily deaths data (as part of
 #   our preparation to submit the "Lessons Learned" manuscript), I grew more and
@@ -43,31 +49,32 @@ library(tidyverse)
 # This will open a new page with the data in JSON format. We need to save this
 #   as a .JSON or .txt file in the new deaths_JSON/ directory.
 deaths_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210329.json",
+	path = "../data/deaths_JSON/deaths_20210404.json",
 	simplifyVector = TRUE
 ) 
 
 
 
 ######  Step 2: Wrangle the Data  #############################################
-ConvertJsonDate <- function(date_int) {
-	# Function source: https://stackoverflow.com/questions/54450815/how-to-read-json-date-in-r
-	# Checked against: https://www.freeformatter.com/epoch-timestamp-to-date-converter.html
-	as.POSIXct(date_int / 1000, origin = "1970-01-01", tz = "GMT")
-}
-
 deaths_df <- 
 	deaths_json$features %>%
 	jsonlite::flatten() %>% 
 	as_tibble() %>% 
 	rename(
-		Date = attributes.Date1,
+		Date1 = attributes.Date1,
 		Deaths = attributes.Deaths
 	) %>% 
-	mutate(Date2 = ConvertJsonDate(Date)) %>% 
-	mutate(DateClean = as_date(Date2)) %>% 
-	select(DateClean, Deaths) %>% 
-	arrange(DateClean)
+	mutate(Date2 = ConvertJsonDate(Date1)) %>% 
+	mutate(Date = as_date(Date2)) %>% 
+	select(Date, Deaths) %>% 
+	arrange(Date)
+
+tibble(
+	Date = seq(as.Date('2020-03-05'), Sys.Date(), by = "day")
+) %>% 
+	left_join(deaths_df) %>% 
+	replace_na(list(Deaths = 0)) %>% 
+	write_csv(file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210404.csv")
 
 
 
@@ -149,3 +156,119 @@ summary(difference_711arima)
 difference_ets <- forecast::ets(difference_ts)
 plot(residuals(difference_ets))
 plot(fitted.values(difference_ets))
+
+
+
+######  Step 5: Measure Death Certification Delay  ############################
+# When I originally wrote this script, I only had access to the death-by-day
+#   data for one week, so I compared it against the linelist data. I still don't
+#   know how to estimate the lag between the linelist and state reported data
+#   (recall that the linelist date is when the patients were marked as COVID-19
+#   positive, and later an indicator is added if they died). Regardless, one 
+#   week has passed, so I can compare the deaths-by-day data from last week to
+#   this week in order to estimate the distribution of the certification delay.
+
+dateSequence_df <- tibble(
+	Date = seq(as.Date('2020-03-05'), as.Date('2021-03-29'), by = "day")
+)
+
+###  Last Week's Data  ###
+deathsOld_json <- jsonlite::read_json(
+	path = "../data/deaths_JSON/deaths_20210329.json",
+	simplifyVector = TRUE
+) 
+
+deathsOld_df <- 
+	deathsOld_json$features %>%
+	jsonlite::flatten() %>% 
+	as_tibble() %>% 
+	rename(
+		Date1 = attributes.Date1,
+		Deaths = attributes.Deaths
+	) %>% 
+	mutate(Date2 = ConvertJsonDate(Date1)) %>% 
+	mutate(Date = as_date(Date2)) %>% 
+	select(Date, Deaths) %>% 
+	arrange(Date)
+
+
+###  Recent Data  ###
+deathsNew_json <- jsonlite::read_json(
+	path = "../data/deaths_JSON/deaths_20210404.json",
+	simplifyVector = TRUE
+)
+
+deathsNew_df <- 
+	deathsNew_json$features %>%
+	jsonlite::flatten() %>% 
+	as_tibble() %>% 
+	rename(
+		Date1 = attributes.Date1,
+		Deaths = attributes.Deaths
+	) %>% 
+	mutate(Date2 = ConvertJsonDate(Date1)) %>% 
+	mutate(Date = as_date(Date2)) %>% 
+	select(Date, Deaths) %>% 
+	arrange(Date)
+
+
+###  Compare the Counts  ###
+deathsCountsCompared_df <- 
+	dateSequence_df %>% 
+	left_join(deathsOld_df) %>% 
+	rename(DeathsOld = Deaths) %>% 
+	left_join(deathsNew_df) %>% 
+	rename(DeathsNew = Deaths) %>% 
+	replace_na(list(DeathsOld = 0, DeathsNew = 0)) %>% 
+	mutate(NewlyAddedDeaths = DeathsNew - DeathsOld)
+
+totalNewDeaths_int <- 
+	deathsCountsCompared_df %>% 
+	filter(NewlyAddedDeaths > 0) %>% 
+	pull(NewlyAddedDeaths) %>% 
+	sum()
+
+# 75th Pctile Date: new deaths added after this date represent the most delayed
+#   quarter of deaths
+deathsCountsCompared_df %>% 
+	mutate(CumlNewDeaths = cumsum(NewlyAddedDeaths)) %>% 
+	filter(CumlNewDeaths < totalNewDeaths_int / 4) %>% 
+	slice(n()) %>% 
+	pull(Date)
+# "2021-03-11" on 4 April; 3 weeks
+# Our P75 estimate for the state based on line list data was 13 weeks this week. 
+#   This means that something is very wrong with the how deaths are being
+#   recorded in the line list.
+
+# 50th Pctile Date: new deaths added after this date represent the most delayed
+#   half of deaths
+deathsCountsCompared_df %>% 
+	mutate(CumlNewDeaths = cumsum(NewlyAddedDeaths)) %>% 
+	filter(CumlNewDeaths < totalNewDeaths_int / 2) %>% 
+	slice(n()) %>% 
+	pull(Date)
+# "2021-03-18" on 4 April; 2 weeks
+# Our P50 estimate for the state based on line list data was 7 weeks this week. 
+
+
+
+###  Plot the Delay  ###
+ggplot(
+	data = deathsCountsCompared_df %>% 
+		filter(NewlyAddedDeaths > 0)
+) +
+	theme_bw() +
+	theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+	aes(x = Date, y = NewlyAddedDeaths) + 
+	scale_x_date(
+		date_breaks = "1 month",
+		date_minor_breaks = "1 day",
+		labels = scales::date_format("%d-%b")
+	) +
+	geom_col()
+
+# We see that most of the deaths are added within the past month, but there are
+#   a few that go back to last summer.
+
+
+
