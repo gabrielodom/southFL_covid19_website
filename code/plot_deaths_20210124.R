@@ -63,15 +63,46 @@ library(readxl)
 
 # We are missing data files after the 2nd of September from our original slug,
 #   so we switched to the ArcGIS slug for 2020-09-08's data.
+
+
+
+######  New Data Source from FLDoH Open Data  #################################
+# As of 11 April 2021, the state linelist has been split into two data files:
+# - https://open-fdoh.hub.arcgis.com/datasets/1d8756918efd40258ae05723f1c4ece0_0
+# - https://open-fdoh.hub.arcgis.com/datasets/florida-covid19-case-line-data-2021-1
+# 
+# Both links require "point-and-click" operations to download the data. So now,
+#   I have to write code to join the two data sets in order for the rest of this
+#   code to work.
+c(
+	"../data/deaths/Case_Data_2020_arcGIS_20210411.csv",
+	"../data/deaths/Case_Data_2021_arcGIS_20210411.csv"
+) %>% 
+	map(read_csv) %>% 
+	# This has two columns that may be duplicates: "OBJECTID" and "ObjectId2". I
+	#   cracked open the original two data sets, and these columns are duplicated
+	#   on the DoH end; our code didn't create them.
+	bind_rows() %>% 
+	write_csv(file = "../data/deaths/Case_Data_arcGIS_20210411.csv")
+# FORMAT CHANGES (as of 2021-04-11):
+#   - column names are truncated:
+#      - "Jurisdiction" --> "Jurisdicti"
+#      - "Hospitalized" --> "Hospitaliz"
+#   - column name "Case" --> "Case_"
+#   - column name "Case_" --> "Case1" WHY???????
+#   - date format: "m/d/YY" --> "YYYY/MM/DD" (1/1/21 --> 2021/01/01)
+#   - maybe others that I missed? who knows
+
 deaths_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210404.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210411.csv"
 	) %>% 
 	# NOTE 2021-01-14: WHAT THE HELL IS "Recent"??? There are 243 "Recent" rows
 	#   for the 16th data, but only 95 for the 10th. This must be a new designation
 	filter(Died %in% c("Yes", "Recent")) %>% 
-	filter(Jurisdiction == "FL resident") %>% 
-	rename(CaseDate = Case_)
+	# filter(Jurisdiction == "FL resident") %>% 
+	filter(Jurisdicti == "FL resident") %>% 
+	rename(CaseDate = Case1)
 
 deaths2_df <- 
 	deaths_df %>% 
@@ -80,8 +111,10 @@ deaths2_df <-
 		ChartDate = str_remove(ChartDate, pattern = " .*")
 	) %>%
 	mutate(
-		CaseDate  = as.Date(CaseDate, format = "%m/%d/%Y"),
-		ChartDate = as.Date(ChartDate, format = "%m/%d/%Y")
+		# CaseDate  = as.Date(CaseDate, format = "%m/%d/%Y"),
+		# ChartDate = as.Date(ChartDate, format = "%m/%d/%Y")
+		CaseDate  = as.Date(CaseDate, format = "%Y/%m/%d"),
+		ChartDate = as.Date(ChartDate, format = "%Y/%m/%d")
 	) %>% 
 	mutate(
 		CaseDate  = as_date(CaseDate),
@@ -92,12 +125,13 @@ deaths2_df <-
 		County, Age, Age_group, Gender, EventDate, ChartDate
 	)
 
-# deaths2_df %>% 
-# 	mutate(diffTime = ChartDate - CaseDate) %>% 
-# 	pull(diffTime) %>% 
-# 	as.numeric() %>% 
+# deaths2_df %>%
+# 	mutate(diffTime = ChartDate - CaseDate) %>%
+# 	pull(diffTime) %>%
+# 	as.numeric() %>%
 # 	summary()
 # # Ok, so CaseDate and ChartDate are identical
+# # UPDATE 2021-04-11: still true
 # deaths2_df$CaseDate <- NULL
 
 # deaths2_df %>%
@@ -116,6 +150,8 @@ deaths2_df <-
 # #   column is the date of the onset of COVID-19, while the ChartDate column
 # #   lists the "date the case was counted". I now assume that means the date
 # #   of death.
+# # UPDATE 2021-04-11: we found out and confirmed last week that this is NOT
+# #   date of death. 
 
 
 ###  Counts by Age  ###
@@ -162,7 +198,7 @@ deathsbyday_df <-
 ###  Save  ###
 write_csv(
 	x = deathsbyday_df,
-	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210404.csv"
+	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210411.csv"
 )
 
 
@@ -186,7 +222,7 @@ write_csv(
 
 deathsOld_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210328.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210404.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdiction == "FL resident") %>% 
@@ -210,18 +246,18 @@ deathsOld_df <-
 
 deathsNew_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210404.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210411.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
-	filter(Jurisdiction == "FL resident") %>% 
-	rename(CaseDate = Case_) %>% 
+	filter(Jurisdicti == "FL resident") %>% 
+	rename(CaseDate = Case1) %>% 
 	mutate(
 		CaseDate  = str_remove(CaseDate, pattern = " .*"),
 		ChartDate = str_remove(ChartDate, pattern = " .*")
 	) %>%
 	mutate(
-		CaseDate  = as.Date(CaseDate, format = "%m/%d/%Y"),
-		ChartDate = as.Date(ChartDate, format = "%m/%d/%Y")
+		CaseDate  = as.Date(CaseDate, format = "%Y/%m/%d"),
+		ChartDate = as.Date(ChartDate, format = "%Y/%m/%d")
 	) %>% 
 	mutate(
 		CaseDate  = as_date(CaseDate),
@@ -310,6 +346,9 @@ nrow(deathsNew_df) - nrow(deathsOld_df)
 #   in the anti-join.
 # Between 28 March and 4 April, we added 496 new deaths, but 578 show up
 #   in the anti-join. This is a very large discrepancy.
+# Between 4 April and 11 April, we updated to the new data format (with split
+#   line list over 2020 and 2021). We added 403 new deaths, but 628 show up
+#   in the anti-join. This is an even larger discrepancy than last week.
 
 
 
@@ -775,11 +814,28 @@ newlyAddedDeaths_df %>%
 #   in a row, so maybe that's a bunch of deaths? Still, this feels wrong.
 
 
+###  Reporting Certification Delay 2021-04-11  ###
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-08-02" "2021-02-18" "2021-03-06" "2021-02-25" "2021-03-17" "2021-04-09" 
+# 7-week delay for 75th percentile; 5-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-06-29" "2021-01-29" "2021-03-02" "2021-02-11" "2021-03-19" "2021-04-09"
+# 10-week delay for 75th percentile; 6-week delay for 50th percentile
+#
+# This is a huge improvement from last week! I had emailed Sarah Suarez about
+#   the crazy stuff I was seeing in the data, and they changed the whole data
+#   format. However, some dates got messed up: last week we had 290 COVID-19
+#   deaths on 2020-12-31, this week we have 497. I emailed Sarah about that too.
+
+
 
 ######  Plots of Deaths  ######################################################
 ###  Import Cleaned Deaths Data  ###
 deathsbyday_df <- read_csv(
-	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210404.csv"
+	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210411.csv"
 )
 
 # deathsbyday_df %>% 
@@ -796,7 +852,7 @@ ggplot(
 		filter(County == whichCounty) %>% # %in% c("Escambia", "Santa Rosa")
 		# Only 25% of newly added deaths are on or before this date. See comments
 		#   on newly-added deaths in previous section
-		filter(Date <= "2021-01-15")
+		filter(Date <= "2021-02-18")
 ) +
 	
 	theme_bw() +
@@ -822,7 +878,7 @@ ggplot(
 		group_by(Date) %>% 
 		summarise(Count = sum(Count)) %>% 
 	  # See comments on newly-added deaths in previous section
-	  filter(Date <= "2021-01-04")
+	  filter(Date <= "2021-01-29")
 ) +
 	
 	theme_bw() +

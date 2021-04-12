@@ -40,7 +40,7 @@ ConvertJsonDate <- function(date_int) {
 
 ######  Step 1: Get the Data  #################################################
 # This website
-# https://services1.arcgis.com/CY1LXxl9zlJeBuRZ/ArcGIS/rest/services/Florida_COVID_19_Deaths_by_Day/FeatureServer/0/query
+# <https://services1.arcgis.com/CY1LXxl9zlJeBuRZ/ArcGIS/rest/services/Florida_COVID_19_Deaths_by_Day/FeatureServer/0/query>
 #   has a point-and-click query interface. We check the data dictionary by
 #   removing the "/query" from the end. We want the following information:
 #   - Where: "Deaths">-900
@@ -49,7 +49,7 @@ ConvertJsonDate <- function(date_int) {
 # This will open a new page with the data in JSON format. We need to save this
 #   as a .JSON or .txt file in the new deaths_JSON/ directory.
 deaths_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210404.json",
+	path = "../data/deaths_JSON/deaths_20210411.json",
 	simplifyVector = TRUE
 ) 
 
@@ -78,8 +78,9 @@ deathsClean_df <-
 
 write_csv(
 	deathsClean_df,
-	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210404.csv"
+	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210411.csv"
 )
+# 
 
 
 
@@ -179,7 +180,7 @@ dateSequence_df <- tibble(
 
 ###  Last Week's Data  ###
 deathsOld_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210329.json",
+	path = "../data/deaths_JSON/deaths_20210404.json",
 	simplifyVector = TRUE
 ) 
 
@@ -199,7 +200,7 @@ deathsOld_df <-
 
 ###  Recent Data  ###
 deathsNew_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210404.json",
+	path = "../data/deaths_JSON/deaths_20210411.json",
 	simplifyVector = TRUE
 )
 
@@ -244,6 +245,7 @@ deathsCountsCompared_df %>%
 # Our P75 estimate for the state based on line list data was 13 weeks this week. 
 #   This means that something is very wrong with the how deaths are being
 #   recorded in the line list.
+# "2021-03-09" on 11 April; 5 weeks
 
 # 50th Pctile Date: new deaths added after this date represent the most delayed
 #   half of deaths
@@ -253,7 +255,8 @@ deathsCountsCompared_df %>%
 	slice(n()) %>% 
 	pull(Date)
 # "2021-03-18" on 4 April; 2 weeks
-# Our P50 estimate for the state based on line list data was 7 weeks this week. 
+# Our P50 estimate for the state based on line list data was 7 weeks this week.
+# "2021-03-22" on 4 April; 3 weeks
 
 
 
@@ -281,9 +284,9 @@ ggplot(
 # Now that we are confident that the data from 11 March and before is "stable" 
 #   (as of 4 April anyway), we can build a plot of deaths over time.
 deathsClean_df <- read_csv(
-	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210404.csv"
+	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210411.csv"
 ) %>% 
-	filter(Date < "2021-03-11")
+	filter(Date < "2021-03-09")
 
 ggplot(data = deathsClean_df) +
 	theme_bw() +
