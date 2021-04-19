@@ -6,6 +6,7 @@
 library(tidyverse)
 library(lubridate)
 library(readxl)
+#
 
 
 
@@ -75,15 +76,15 @@ library(readxl)
 #   I have to write code to join the two data sets in order for the rest of this
 #   code to work.
 c(
-	"../data/deaths/Case_Data_2020_arcGIS_20210411.csv",
-	"../data/deaths/Case_Data_2021_arcGIS_20210411.csv"
+	"../data/deaths/Case_Data_2020_arcGIS_20210418.csv",
+	"../data/deaths/Case_Data_2021_arcGIS_20210418.csv"
 ) %>% 
 	map(read_csv) %>% 
 	# This has two columns that may be duplicates: "OBJECTID" and "ObjectId2". I
 	#   cracked open the original two data sets, and these columns are duplicated
 	#   on the DoH end; our code didn't create them.
 	bind_rows() %>% 
-	write_csv(file = "../data/deaths/Case_Data_arcGIS_20210411.csv")
+	write_csv(file = "../data/deaths/Case_Data_arcGIS_20210418.csv")
 # FORMAT CHANGES (as of 2021-04-11):
 #   - column names are truncated:
 #      - "Jurisdiction" --> "Jurisdicti"
@@ -95,7 +96,7 @@ c(
 
 deaths_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210411.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210418.csv"
 	) %>% 
 	# NOTE 2021-01-14: WHAT THE HELL IS "Recent"??? There are 243 "Recent" rows
 	#   for the 16th data, but only 95 for the 10th. This must be a new designation
@@ -198,7 +199,7 @@ deathsbyday_df <-
 ###  Save  ###
 write_csv(
 	x = deathsbyday_df,
-	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210411.csv"
+	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210418.csv"
 )
 
 
@@ -220,20 +221,44 @@ write_csv(
 # 	mutate(Date = as_date(`Date case counted`)) %>%
 # 	select(-`Date case counted`)
 
+# deathsOld_df <- 
+# 	read_csv(
+# 		file = "../data/deaths/Case_Data_arcGIS_20210404.csv"
+# 	) %>% 
+# 	filter(Died %in% c("Yes", "Recent")) %>% 
+# 	filter(Jurisdiction == "FL resident") %>% 
+# 	rename(CaseDate = Case_) %>% 
+# 	mutate(
+# 		CaseDate  = str_remove(CaseDate, pattern = " .*"),
+# 		ChartDate = str_remove(ChartDate, pattern = " .*")
+# 	) %>%
+# 	mutate(
+# 		CaseDate  = as.Date(CaseDate, format = "%m/%d/%Y"),
+# 		ChartDate = as.Date(ChartDate, format = "%m/%d/%Y")
+# 	) %>% 
+# 	mutate(
+# 		CaseDate  = as_date(CaseDate),
+# 		EventDate = as_date(EventDate),
+# 		ChartDate = as_date(ChartDate),
+# 	) %>% 
+# 	select(
+# 		County, Age, Age_group, Gender, EventDate, ChartDate
+# 	)
+
 deathsOld_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210404.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210411.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
-	filter(Jurisdiction == "FL resident") %>% 
-	rename(CaseDate = Case_) %>% 
+	filter(Jurisdicti == "FL resident") %>% 
+	rename(CaseDate = Case1) %>% 
 	mutate(
 		CaseDate  = str_remove(CaseDate, pattern = " .*"),
 		ChartDate = str_remove(ChartDate, pattern = " .*")
 	) %>%
 	mutate(
-		CaseDate  = as.Date(CaseDate, format = "%m/%d/%Y"),
-		ChartDate = as.Date(ChartDate, format = "%m/%d/%Y")
+		CaseDate  = as.Date(CaseDate, format = "%Y/%m/%d"),
+		ChartDate = as.Date(ChartDate, format = "%Y/%m/%d")
 	) %>% 
 	mutate(
 		CaseDate  = as_date(CaseDate),
@@ -246,7 +271,7 @@ deathsOld_df <-
 
 deathsNew_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210411.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210418.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdicti == "FL resident") %>% 
@@ -349,6 +374,9 @@ nrow(deathsNew_df) - nrow(deathsOld_df)
 # Between 4 April and 11 April, we updated to the new data format (with split
 #   line list over 2020 and 2021). We added 403 new deaths, but 628 show up
 #   in the anti-join. This is an even larger discrepancy than last week.
+# Between 11 April and 18 April, we added 102 new deaths, but 413 show up
+#   in the anti-join. This is the third week in a row with such a huge
+#   difference. What is going on?
 
 
 
@@ -829,6 +857,18 @@ newlyAddedDeaths_df %>%
 #   the crazy stuff I was seeing in the data, and they changed the whole data
 #   format. However, some dates got messed up: last week we had 290 COVID-19
 #   deaths on 2020-12-31, this week we have 497. I emailed Sarah about that too.
+
+
+###  Reporting Certification Delay 2021-04-18  ###
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-07-15" "2021-02-23" "2021-03-12" "2021-02-28" "2021-03-24" "2021-04-15" 
+# 8-week delay for 75th percentile; 5-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-17" "2021-02-01" "2021-03-09" "2021-02-13" "2021-03-25" "2021-04-15"
+# 11-week delay for 75th percentile; 6-week delay for 50th percentile
 
 
 

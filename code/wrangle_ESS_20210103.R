@@ -36,12 +36,13 @@ whichCounties_char <- c("MIAMI-DADE", "BROWARD", "PALM BEACH")
 ReadESS_safely <- function(file_char){
 	
 	# The tab name changed in June (month 06)
+	# We cycled back to April and May in 2021. This pandemic is taking forever.
 	sheetName_char <- case_when(
 		str_detect(
-			file_char, pattern = "Hospitals_04"
+			file_char, pattern = "Hospitals_04.\\d{2}.2020"
 		) ~ "County_Bed_Availability_Report_",
 		str_detect(
-			file_char, pattern = "Hospitals_05"
+			file_char, pattern = "Hospitals_05.\\d{2}.2020"
 		) ~ "County_Bed_Availability_Report_",
 		TRUE ~ "County_Bed_Avail_Report_for_Par"
 	)
@@ -498,6 +499,19 @@ southFloridaHospitalised_ls[336:359] <-
 			"2021-03-27", "2021-03-28", "2021-03-29", "2021-03-30", "2021-03-31",
 			"2021-04-01", "2021-04-02", "2021-04-03", "2021-04-04", "2021-04-05",
 			"2021-04-06", "2021-04-07", "2021-04-08", "2021-04-09"
+		),
+		.f = ReadHospitalLevelData2,
+		county_char = whichCounties_char
+	)
+
+
+###  April 10th  ###
+southFloridaHospitalised_ls[361:367] <-
+	map2(
+		.x = dataFiles_char[361:367],
+		.y = c(
+			"2021-04-11", "2021-04-12", "2021-04-13", "2021-04-14", "2021-04-16",
+			"2021-04-17", "2021-04-18"
 		),
 		.f = ReadHospitalLevelData2,
 		county_char = whichCounties_char
