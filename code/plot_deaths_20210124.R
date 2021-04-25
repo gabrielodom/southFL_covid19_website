@@ -76,15 +76,15 @@ library(readxl)
 #   I have to write code to join the two data sets in order for the rest of this
 #   code to work.
 c(
-	"../data/deaths/Case_Data_2020_arcGIS_20210418.csv",
-	"../data/deaths/Case_Data_2021_arcGIS_20210418.csv"
+	"../data/deaths/Case_Data_2020_arcGIS_20210425.csv",
+	"../data/deaths/Case_Data_2021_arcGIS_20210425.csv"
 ) %>% 
 	map(read_csv) %>% 
 	# This has two columns that may be duplicates: "OBJECTID" and "ObjectId2". I
 	#   cracked open the original two data sets, and these columns are duplicated
 	#   on the DoH end; our code didn't create them.
 	bind_rows() %>% 
-	write_csv(file = "../data/deaths/Case_Data_arcGIS_20210418.csv")
+	write_csv(file = "../data/deaths/Case_Data_arcGIS_20210425.csv")
 # FORMAT CHANGES (as of 2021-04-11):
 #   - column names are truncated:
 #      - "Jurisdiction" --> "Jurisdicti"
@@ -96,7 +96,7 @@ c(
 
 deaths_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210418.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210425.csv"
 	) %>% 
 	# NOTE 2021-01-14: WHAT THE HELL IS "Recent"??? There are 243 "Recent" rows
 	#   for the 16th data, but only 95 for the 10th. This must be a new designation
@@ -199,7 +199,7 @@ deathsbyday_df <-
 ###  Save  ###
 write_csv(
 	x = deathsbyday_df,
-	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210418.csv"
+	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210425.csv"
 )
 
 
@@ -247,7 +247,7 @@ write_csv(
 
 deathsOld_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210411.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210418.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdicti == "FL resident") %>% 
@@ -271,7 +271,7 @@ deathsOld_df <-
 
 deathsNew_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210418.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210425.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdicti == "FL resident") %>% 
@@ -377,6 +377,8 @@ nrow(deathsNew_df) - nrow(deathsOld_df)
 # Between 11 April and 18 April, we added 102 new deaths, but 413 show up
 #   in the anti-join. This is the third week in a row with such a huge
 #   difference. What is going on?
+# Between 18 April and 25 APril, we added 408 new deaths, but 429 show up
+#   in the anti-join. Back to normal?
 
 
 
@@ -871,11 +873,23 @@ newlyAddedDeaths_df %>%
 # 11-week delay for 75th percentile; 6-week delay for 50th percentile
 
 
+###  Reporting Certification Delay 2021-04-25  ###
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-08-19" "2021-02-22" "2021-03-19" "2021-03-09" "2021-04-06" "2021-04-21" 
+# 9-week delay for 75th percentile; 5-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-07" "2021-02-22" "2021-03-20" "2021-03-02" "2021-04-05" "2021-04-22"
+# 9-week delay for 75th percentile; 5-week delay for 50th percentile
+
+
 
 ######  Plots of Deaths  ######################################################
 ###  Import Cleaned Deaths Data  ###
 deathsbyday_df <- read_csv(
-	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210411.csv"
+	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210425.csv"
 )
 
 # deathsbyday_df %>% 
@@ -892,7 +906,7 @@ ggplot(
 		filter(County == whichCounty) %>% # %in% c("Escambia", "Santa Rosa")
 		# Only 25% of newly added deaths are on or before this date. See comments
 		#   on newly-added deaths in previous section
-		filter(Date <= "2021-02-18")
+		filter(Date <= "2021-02-22")
 ) +
 	
 	theme_bw() +
