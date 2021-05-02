@@ -506,13 +506,14 @@ southFloridaHospitalised_ls[336:359] <-
 
 
 ###  April 10th  ###
-southFloridaHospitalised_ls[361:371] <-
+southFloridaHospitalised_ls[361:377] <-
 	map2(
-		.x = dataFiles_char[361:371],
+		.x = dataFiles_char[361:377],
 		.y = c(
 			"2021-04-11", "2021-04-12", "2021-04-13", "2021-04-14", "2021-04-16",
 			"2021-04-17", "2021-04-18", "2021-04-20", "2021-04-21", "2021-04-22",
-			"2021-04-23"
+			"2021-04-23", "2021-04-24", "2021-04-25", "2021-04-26", "2021-04-28",
+			"2021-04-29", "2021-04-30"
 		),
 		.f = ReadHospitalLevelData2,
 		county_char = whichCounties_char

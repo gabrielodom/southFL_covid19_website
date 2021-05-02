@@ -49,7 +49,7 @@ ConvertJsonDate <- function(date_int) {
 # This will open a new page with the data in JSON format. We need to save this
 #   as a .JSON or .txt file in the new deaths_JSON/ directory.
 deaths_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210425.json",
+	path = "../data/deaths_JSON/deaths_20210502.json",
 	simplifyVector = TRUE
 ) 
 
@@ -78,7 +78,7 @@ deathsClean_df <-
 
 write_csv(
 	deathsClean_df,
-	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210425.csv"
+	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210502.csv"
 )
 # 
 
@@ -175,12 +175,12 @@ plot(fitted.values(difference_ets))
 #   this week in order to estimate the distribution of the certification delay.
 
 dateSequence_df <- tibble(
-	Date = seq(as.Date('2020-03-05'), as.Date('2021-04-18'), by = "day")
+	Date = seq(as.Date('2020-03-05'), as.Date('2021-04-25'), by = "day")
 )
 
 ###  Last Week's Data  ###
 deathsOld_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210418.json",
+	path = "../data/deaths_JSON/deaths_20210425.json",
 	simplifyVector = TRUE
 ) 
 
@@ -200,7 +200,7 @@ deathsOld_df <-
 
 ###  Recent Data  ###
 deathsNew_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210425.json",
+	path = "../data/deaths_JSON/deaths_20210502.json",
 	simplifyVector = TRUE
 )
 
@@ -248,6 +248,7 @@ deathsCountsCompared_df %>%
 # "2021-03-09" on 11 April; 5 weeks
 # "2021-03-24" on 18 April; 4 weeks
 # "2021-03-31" on 25 April; 4 weeks
+# "2021-04-08" on 2 May; 3 weeks
 
 # 50th Pctile Date: new deaths added after this date represent the most delayed
 #   half of deaths
@@ -261,6 +262,7 @@ deathsCountsCompared_df %>%
 # "2021-03-22" on 11 April; 3 weeks
 # "2021-04-01" on 18 April; 2 weeks
 # "2021-04-09" on 25 April; 2 weeks
+# "2021-04-16" on 2 May; 2 weeks
 
 
 
