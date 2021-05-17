@@ -68,35 +68,48 @@ library(readxl)
 
 
 ######  New Data Source from FLDoH Open Data  #################################
-# As of 11 April 2021, the state linelist has been split into two data files:
-# - https://open-fdoh.hub.arcgis.com/datasets/1d8756918efd40258ae05723f1c4ece0_0
-# - https://open-fdoh.hub.arcgis.com/datasets/florida-covid19-case-line-data-2021-1
-# 
-# Both links require "point-and-click" operations to download the data. So now,
-#   I have to write code to join the two data sets in order for the rest of this
-#   code to work.
-c(
-	"../data/deaths/Case_Data_2020_arcGIS_20210502.csv",
-	"../data/deaths/Case_Data_2021_arcGIS_20210502.csv"
-) %>% 
-	map(read_csv) %>% 
-	# This has two columns that may be duplicates: "OBJECTID" and "ObjectId2". I
-	#   cracked open the original two data sets, and these columns are duplicated
-	#   on the DoH end; our code didn't create them.
-	bind_rows() %>% 
-	write_csv(file = "../data/deaths/Case_Data_arcGIS_20210502.csv")
-# FORMAT CHANGES (as of 2021-04-11):
-#   - column names are truncated:
-#      - "Jurisdiction" --> "Jurisdicti"
-#      - "Hospitalized" --> "Hospitaliz"
-#   - column name "Case" --> "Case_"
-#   - column name "Case_" --> "Case1" WHY???????
-#   - date format: "m/d/YY" --> "YYYY/MM/DD" (1/1/21 --> 2021/01/01)
-#   - maybe others that I missed? who knows
+# # As of 11 April 2021, the state linelist has been split into two data files:
+# # - https://open-fdoh.hub.arcgis.com/datasets/1d8756918efd40258ae05723f1c4ece0_0
+# # - https://open-fdoh.hub.arcgis.com/datasets/florida-covid19-case-line-data-2021-1
+# # 
+# # Both links require "point-and-click" operations to download the data. So now,
+# #   I have to write code to join the two data sets in order for the rest of this
+# #   code to work.
+# c(
+# 	"../data/deaths/Case_Data_2020_arcGIS_20210509.csv",
+# 	"../data/deaths/Case_Data_2021_arcGIS_20210509.csv"
+# ) %>% 
+# 	map(read_csv) %>% 
+# 	# This has two columns that may be duplicates: "OBJECTID" and "ObjectId2". I
+# 	#   cracked open the original two data sets, and these columns are duplicated
+# 	#   on the DoH end; our code didn't create them.
+# 	bind_rows() %>% 
+# 	write_csv(file = "../data/deaths/Case_Data_arcGIS_20210509.csv")
+# # FORMAT CHANGES (as of 2021-04-11):
+# #   - column names are truncated:
+# #      - "Jurisdiction" --> "Jurisdicti"
+# #      - "Hospitalized" --> "Hospitaliz"
+# #   - column name "Case" --> "Case_"
+# #   - column name "Case_" --> "Case1" WHY???????
+# #   - date format: "m/d/YY" --> "YYYY/MM/DD" (1/1/21 --> 2021/01/01)
+# #   - maybe others that I missed? who knows
+
+
+###  FORMAT CHANGE: 2021-05-09  ###
+deaths2020_df <-
+	read_csv("../data/deaths/Case_Data_2020_arcGIS_20210516.csv") %>% 
+	select(-OBJECTID) %>% 
+	rename(ObjectId = ObjectId2)
+deaths2021_df <- read_csv("../data/deaths/Case_Data_2021_arcGIS_20210516.csv")
+all.equal(colnames(deaths2020_df), colnames(deaths2021_df))
+
+bind_rows(deaths2020_df, deaths2021_df) %>% 
+	write_csv(file = "../data/deaths/Case_Data_arcGIS_20210516.csv")
+rm(list = ls())
 
 deaths_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210502.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210516.csv"
 	) %>% 
 	# NOTE 2021-01-14: WHAT THE HELL IS "Recent"??? There are 243 "Recent" rows
 	#   for the 16th data, but only 95 for the 10th. This must be a new designation
@@ -199,8 +212,10 @@ deathsbyday_df <-
 ###  Save  ###
 write_csv(
 	x = deathsbyday_df,
-	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210502.csv"
+	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210516.csv"
 )
+
+rm(list = ls())
 
 
 
@@ -247,7 +262,7 @@ write_csv(
 
 deathsOld_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210425.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210509.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdicti == "FL resident") %>% 
@@ -271,7 +286,7 @@ deathsOld_df <-
 
 deathsNew_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210502.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210516.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdicti == "FL resident") %>% 
@@ -380,7 +395,11 @@ nrow(deathsNew_df) - nrow(deathsOld_df)
 # Between 18 April and 25 April, we added 408 new deaths, but 429 show up
 #   in the anti-join. Back to normal?
 # Between 25 April and 2 May, we added 361 new deaths, but 380 show up
-#   in the anti-join. Back to normal?
+#   in the anti-join.
+# Between 2 May and 9 May, we added 558 new deaths, but 553 show up
+#   in the anti-join.
+# Between 9 May and 16 May, we added 344 new deaths, but 374 show up
+#   in the anti-join.
 
 
 
@@ -899,11 +918,35 @@ newlyAddedDeaths_df %>%
 # 12-week delay for 75th percentile; 5-week delay for 50th percentile
 
 
+###  Reporting Certification Delay 2021-05-09  ###
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-07-28" "2021-02-21" "2021-03-29" "2021-02-27" "2021-04-08" "2021-05-05" 
+# 11-week delay for 75th percentile; 6-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-22" "2021-02-19" "2021-04-05" "2021-02-27" "2021-04-15" "2021-05-07"
+# 11-week delay for 75th percentile; 5-week delay for 50th percentile
+
+
+###  Reporting Certification Delay 2021-05-16  ###
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-07-20" "2021-03-19" "2021-04-07" "2021-03-09" "2021-04-19" "2021-05-10" 
+# 8-week delay for 75th percentile; 6-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-03-30" "2021-02-18" "2021-04-10" "2021-03-09" "2021-04-23" "2021-05-13"
+# 12-week delay for 75th percentile; 5-week delay for 50th percentile
+
+
 
 ######  Plots of Deaths  ######################################################
 ###  Import Cleaned Deaths Data  ###
 deathsbyday_df <- read_csv(
-	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210502.csv"
+	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210516.csv"
 )
 
 # deathsbyday_df %>% 
@@ -920,7 +963,7 @@ ggplot(
 		filter(County == whichCounty) %>% # %in% c("Escambia", "Santa Rosa")
 		# Only 25% of newly added deaths are on or before this date. See comments
 		#   on newly-added deaths in previous section
-		filter(Date <= "2021-02-18")
+		filter(Date <= "2021-03-19")
 ) +
 	
 	theme_bw() +
@@ -946,7 +989,7 @@ ggplot(
 		group_by(Date) %>% 
 		summarise(Count = sum(Count)) %>% 
 	  # See comments on newly-added deaths in previous section
-	  filter(Date <= "2021-02-09")
+	  filter(Date <= "2021-02-18")
 ) +
 	
 	theme_bw() +
