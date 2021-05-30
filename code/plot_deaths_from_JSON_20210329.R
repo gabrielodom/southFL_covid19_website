@@ -49,7 +49,7 @@ ConvertJsonDate <- function(date_int) {
 # This will open a new page with the data in JSON format. We need to save this
 #   as a .JSON or .txt file in the new deaths_JSON/ directory.
 deaths_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210516.json",
+	path = "../data/deaths_JSON/deaths_20210530.json",
 	simplifyVector = TRUE
 ) 
 
@@ -78,7 +78,7 @@ deathsClean_df <-
 
 write_csv(
 	deathsClean_df,
-	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210516.csv"
+	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210530.csv"
 )
 # 
 
@@ -175,12 +175,12 @@ plot(fitted.values(difference_ets))
 #   this week in order to estimate the distribution of the certification delay.
 
 dateSequence_df <- tibble(
-	Date = seq(as.Date('2020-03-05'), as.Date('2021-05-09'), by = "day")
+	Date = seq(as.Date('2020-03-05'), as.Date('2021-05-16'), by = "day")
 )
 
 ###  Last Week's Data  ###
 deathsOld_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210509.json",
+	path = "../data/deaths_JSON/deaths_20210523.json",
 	simplifyVector = TRUE
 ) 
 
@@ -200,7 +200,7 @@ deathsOld_df <-
 
 ###  Recent Data  ###
 deathsNew_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210516.json",
+	path = "../data/deaths_JSON/deaths_20210530.json",
 	simplifyVector = TRUE
 )
 
@@ -251,6 +251,8 @@ deathsCountsCompared_df %>%
 # "2021-04-08" on 2 May; 3 weeks
 # "2021-03-28" on 9 May; 6 weeks
 # "2021-04-17" on 16 May; 4 weeks
+# "2021-05-02" on 23 May; 3 weeks
+# "2021-05-04" on 30 May; 4 weeks
 
 # 50th Pctile Date: new deaths added after this date represent the most delayed
 #   half of deaths
@@ -267,6 +269,8 @@ deathsCountsCompared_df %>%
 # "2021-04-16" on 2 May; 2 weeks
 # "2021-04-18" on 9 May; 3 weeks
 # "2021-04-30" on 16 May; 2 weeks
+# "2021-05-07" on 23 May; 2 weeks
+# "2021-05-10" on 23 May; 3 weeks
 
 
 
@@ -294,9 +298,9 @@ ggplot(
 # Now that we are confident that the data from 11 March and before is "stable" 
 #   (as of 4 April anyway), we can build a plot of deaths over time.
 deathsClean_df <- read_csv(
-	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210502.csv"
+	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210530.csv"
 ) %>% 
-	filter(Date < "2021-03-28")
+	filter(Date < "2021-05-04")
 
 ggplot(data = deathsClean_df) +
 	theme_bw() +
