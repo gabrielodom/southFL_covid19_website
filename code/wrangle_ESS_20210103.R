@@ -130,6 +130,11 @@ southFloridaHospitalised_ls[[30]] <-
 	select(Date, everything())
 
 
+###  June 22  ###
+# The ESS file for this day is missing about half of the counties, including
+#   Broward. There is therefore no data available for the state total.
+
+
 ###  Data from Dr. Villalta: June 28 - July 5  ###
 # After 28 June, we started to get ESS data from Dr. Villalta. She sent over 
 #   data for Miami-Dade only, and in a different format. I had to change the 
@@ -506,9 +511,9 @@ southFloridaHospitalised_ls[336:359] <-
 
 
 ###  April 10th  ###
-southFloridaHospitalised_ls[361:401] <-
+southFloridaHospitalised_ls[361:414] <-
 	map2(
-		.x = dataFiles_char[361:401],
+		.x = dataFiles_char[361:414],
 		.y = c(
 			"2021-04-11", "2021-04-12", "2021-04-13", "2021-04-14", "2021-04-15",
 			"2021-04-16", "2021-04-17", "2021-04-18", "2021-04-19", "2021-04-20",
@@ -518,11 +523,14 @@ southFloridaHospitalised_ls[361:401] <-
 			"2021-05-07", "2021-05-08", "2021-05-09", "2021-05-10", "2021-05-11",
 			"2021-05-12", "2021-05-13", "2021-05-14", "2021-05-15", "2021-05-16",
 			"2021-05-17", "2021-05-18", "2021-05-19", "2021-05-20", "2021-05-21",
-			"2021-05-22"
+			"2021-05-22", "2021-05-23", "2021-05-24", "2021-05-25", "2021-05-26",
+			"2021-05-27", "2021-05-28", "2021-05-29", "2021-05-30", "2021-05-31",
+			"2021-06-01", "2021-06-02", "2021-06-03", "2021-06-04"
 		),
 		.f = ReadHospitalLevelData2,
 		county_char = whichCounties_char
 	)
+
 
 
 ######  Wrangle  ##############################################################

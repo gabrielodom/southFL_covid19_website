@@ -13,6 +13,8 @@ ConvertJsonDate <- function(date_int) {
 	# Checked against: https://www.freeformatter.com/epoch-timestamp-to-date-converter.html
 	as.POSIXct(date_int / 1000, origin = "1970-01-01", tz = "GMT")
 }
+#
+
 
 ######  Introduction  #########################################################
 # Last fall, when I was really digging in to the daily deaths data (as part of
@@ -49,7 +51,7 @@ ConvertJsonDate <- function(date_int) {
 # This will open a new page with the data in JSON format. We need to save this
 #   as a .JSON or .txt file in the new deaths_JSON/ directory.
 deaths_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210530.json",
+	path = "../data/deaths_JSON/deaths_20210606.json",
 	simplifyVector = TRUE
 ) 
 
@@ -78,7 +80,7 @@ deathsClean_df <-
 
 write_csv(
 	deathsClean_df,
-	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210530.csv"
+	file = "../data/deaths_JSON/FLDH_COVID19_deathsbyday_20210606.csv"
 )
 # 
 
@@ -175,12 +177,12 @@ plot(fitted.values(difference_ets))
 #   this week in order to estimate the distribution of the certification delay.
 
 dateSequence_df <- tibble(
-	Date = seq(as.Date('2020-03-05'), as.Date('2021-05-16'), by = "day")
+	Date = seq(as.Date('2020-03-05'), as.Date('2021-05-30'), by = "day")
 )
 
 ###  Last Week's Data  ###
 deathsOld_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210523.json",
+	path = "../data/deaths_JSON/deaths_20210530.json",
 	simplifyVector = TRUE
 ) 
 
@@ -200,7 +202,7 @@ deathsOld_df <-
 
 ###  Recent Data  ###
 deathsNew_json <- jsonlite::read_json(
-	path = "../data/deaths_JSON/deaths_20210530.json",
+	path = "../data/deaths_JSON/deaths_20210606.json",
 	simplifyVector = TRUE
 )
 

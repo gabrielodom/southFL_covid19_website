@@ -97,19 +97,19 @@ library(readxl)
 
 ###  FORMAT CHANGE: 2021-05-09  ###
 deaths2020_df <-
-	read_csv("../data/deaths/Case_Data_2020_arcGIS_20210530.csv") %>% 
+	read_csv("../data/deaths/Case_Data_2020_arcGIS_20210606.csv") %>% 
 	select(-OBJECTID) %>% 
 	rename(ObjectId = ObjectId2)
-deaths2021_df <- read_csv("../data/deaths/Case_Data_2021_arcGIS_20210530.csv")
+deaths2021_df <- read_csv("../data/deaths/Case_Data_2021_arcGIS_20210606.csv")
 all.equal(colnames(deaths2020_df), colnames(deaths2021_df))
 
 bind_rows(deaths2020_df, deaths2021_df) %>% 
-	write_csv(file = "../data/deaths/Case_Data_arcGIS_20210530.csv")
+	write_csv(file = "../data/deaths/Case_Data_arcGIS_20210606.csv")
 rm(list = ls())
 
 deaths_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210530.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210606.csv"
 	) %>% 
 	# NOTE 2021-01-14: WHAT THE HELL IS "Recent"??? There are 243 "Recent" rows
 	#   for the 16th data, but only 95 for the 10th. This must be a new designation
@@ -213,7 +213,7 @@ deathsbyday_df <-
 ###  Save  ###
 write_csv(
 	x = deathsbyday_df,
-	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210530.csv"
+	file = "../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210606.csv"
 )
 
 rm(list = ls())
@@ -263,7 +263,7 @@ rm(list = ls())
 
 deathsOld_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210523.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210530.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdicti == "FL resident") %>% 
@@ -287,7 +287,7 @@ deathsOld_df <-
 
 deathsNew_df <- 
 	read_csv(
-		file = "../data/deaths/Case_Data_arcGIS_20210530.csv"
+		file = "../data/deaths/Case_Data_arcGIS_20210606.csv"
 	) %>% 
 	filter(Died %in% c("Yes", "Recent")) %>% 
 	filter(Jurisdicti == "FL resident") %>% 
@@ -404,6 +404,8 @@ nrow(deathsNew_df) - nrow(deathsOld_df)
 # Between 16 May and 23 May, we added 399 new deaths, but 402 show up
 #   in the anti-join.
 # Between 23 May and 30 May, we added 300 new deaths, but 304 show up
+#   in the anti-join.
+# Between 30 May and 6 June, we added 199 new deaths, but 222 show up
 #   in the anti-join.
 
 
@@ -971,11 +973,23 @@ newlyAddedDeaths_df %>%
 # 8-week delay for 75th percentile; 5-week delay for 50th percentile
 
 
+###  Reporting Certification Delay 2021-06-06  ###
+# MIAMI-DADE COUNTY:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-22" "2021-03-22" "2021-04-27" "2021-03-31" "2021-05-08" "2021-06-01" 
+# 11-week delay for 75th percentile; 6-week delay for 50th percentile. 
+#  
+# STATE OF FLORIDA:
+#         Min.      1st Qu.       Median         Mean      3rd Qu.         Max. 
+# "2020-04-07" "2021-04-03" "2021-04-27" "2021-03-28" "2021-05-09" "2021-06-02"
+# 9-week delay for 75th percentile; 6-week delay for 50th percentile
+
+
 
 ######  Plots of Deaths  ######################################################
 ###  Import Cleaned Deaths Data  ###
 deathsbyday_df <- read_csv(
-	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210530.csv"
+	"../data/deaths/FLDH_COVID19_deathsbyday_bycounty_20210606.csv"
 )
 
 # deathsbyday_df %>% 
@@ -992,7 +1006,7 @@ ggplot(
 		filter(County == whichCounty) %>% # %in% c("Escambia", "Santa Rosa")
 		# Only 25% of newly added deaths are on or before this date. See comments
 		#   on newly-added deaths in previous section
-		filter(Date <= "2021-04-21")
+		filter(Date <= "2021-03-22")
 ) +
 	
 	theme_bw() +
@@ -1018,7 +1032,7 @@ ggplot(
 		group_by(Date) %>% 
 		summarise(Count = sum(Count)) %>% 
 	  # See comments on newly-added deaths in previous section
-	  filter(Date <= "2021-04-07")
+	  filter(Date <= "2021-04-03")
 ) +
 	
 	theme_bw() +
